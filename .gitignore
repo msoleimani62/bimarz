@@ -1,0 +1,32 @@
+# Rust
+/target/
+**/target/
+Cargo.lock
+
+# Fetched proto files (must be re-fetched per engine-core/proto/README.md)
+engine-core/proto/app/
+engine-core/proto/common/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# User config / secrets — never commit real server profiles
+*.enc.json
+xo_state.json
+
+# Editor
+*.swp
+.idea/

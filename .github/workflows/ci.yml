@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  python-tests:
+    name: Python tests (${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dev dependencies
+        run: pip install -e ".[dev]" --config-settings=build-args="--no-default-features" || pip install rich cryptography pytest pytest-cov ruff
+
+      - name: Ruff lint
+        run: ruff check orchestrator tests
+
+      - name: Ruff format check
+        run: ruff format --check orchestrator tests
+
+      - name: Run pytest
+        run: pytest --cov=bimarz --cov-report=xml
+
+  rust-build:
+    name: Rust build & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine-core
+
+      # نسخه‌ی xray-core که فایل‌های proto از آن واکشی می‌شوند باید همیشه با
+      # engine-core/proto/README.md هماهنگ باشد.
+      # The xray-core version the proto files are fetched from must always
+      # match engine-core/proto/README.md.
+      - name: Fetch official xray-core proto files
+        run: |
+          XRAY_TAG="v1.8.24"
+          git clone --depth 1 --branch "$XRAY_TAG" https://github.com/XTLS/xray-core.git /tmp/xray-core-src
+          mkdir -p engine-core/proto
+          cp -r /tmp/xray-core-src/app engine-core/proto/
+          cp -r /tmp/xray-core-src/common engine-core/proto/
+          rm -rf /tmp/xray-core-src
+
+      - name: cargo check
+        working-directory: engine-core
+        run: cargo check --all-targets
+
+      - name: cargo test
+        working-directory: engine-core
+        run: cargo test
+
+      - name: cargo clippy
+        working-directory: engine-core
+        run: cargo clippy --all-targets -- -D warnings
