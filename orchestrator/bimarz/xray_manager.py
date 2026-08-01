@@ -17,8 +17,11 @@ open-downloader-cli اثبات شده پیروی می‌کند: این ماژو�
 
 from __future__ import annotations
 
+import asyncio
+import os
 import shutil
 import subprocess
+import threading
 from pathlib import Path
 
 
@@ -60,7 +63,11 @@ def find_xray_binary(explicit_path: str | None = None) -> Path | None:
     """
     if explicit_path:
         candidate = Path(explicit_path)
-        return candidate if candidate.is_file() else None
+        return (
+            candidate
+            if candidate.is_file() and os.access(candidate, os.X_OK)
+            else None
+        )
 
     found = shutil.which("xray")
     return Path(found) if found else None
@@ -88,6 +95,24 @@ def get_xray_version(binary_path: Path, timeout_seconds: float = 5.0) -> str:
     return first_line
 
 
+async def probe_tcp_port(host: str, port: int, timeout: float) -> bool:
+    """Attempts a raw TCP connection to host:port. Returns True if the
+    port is open, False otherwise. Never raises.
+
+    یک اتصال TCP خام به host:port امتحان می‌کند. True برمی‌گرداند اگر پورت
+    باز باشد، در غیر این صورت False. هرگز استثنا پرتاب نمی‌کند.
+    """
+    try:
+        reader, writer = await asyncio.wait_for(
+            asyncio.open_connection(host, port), timeout=timeout
+        )
+        writer.close()
+        await writer.wait_closed()
+        return True
+    except (OSError, asyncio.TimeoutError):
+        return False
+
+
 class XrayProcess:
     """A thin, testable wrapper around a running xray-core subprocess.
 
@@ -106,6 +131,25 @@ class XrayProcess:
         self._binary_path = binary_path
         self._config_path = config_path
         self._proc: subprocess.Popen | None = None
+        self._stdout_thread: threading.Thread | None = None
+        self._stderr_thread: threading.Thread | None = None
+
+    @staticmethod
+    def _drain_stream(stream) -> None:
+        """Continuously read and discard stream content to prevent pipe deadlock.
+
+        محتوای stream را به‌طور مداوم می‌خواند و دور می‌ریزد تا از deadlock
+        ناشی از پر شدن pipe جلوگیری کند.
+        """
+        if stream is None:
+            return
+        try:
+            for _ in stream:
+                pass
+        except (ValueError, OSError):
+            # Stream already closed or process terminated.
+            # استریم قبلاً بسته شده یا پروسه خاتمه یافته.
+            pass
 
     def start(self) -> None:
         if self._proc is not None and self._proc.poll() is None:
@@ -123,6 +167,23 @@ class XrayProcess:
         except OSError as exc:
             raise ProcessStartError(f"could not start xray-core: {exc}") from exc
 
+        # Drain pipes in background threads to avoid deadlock when buffers fill.
+        # pipeها را در threadهای پس‌زمینه خالی می‌کنیم تا از deadlock جلوگیری شود.
+        self._stdout_thread = threading.Thread(
+            target=self._drain_stream,
+            args=(self._proc.stdout,),
+            daemon=True,
+            name="xray-stdout-drain",
+        )
+        self._stderr_thread = threading.Thread(
+            target=self._drain_stream,
+            args=(self._proc.stderr,),
+            daemon=True,
+            name="xray-stderr-drain",
+        )
+        self._stdout_thread.start()
+        self._stderr_thread.start()
+
     def stop(self, timeout_seconds: float = 5.0) -> None:
         if self._proc is None:
             return
@@ -138,7 +199,15 @@ class XrayProcess:
             self._proc.kill()
             self._proc.wait(timeout=timeout_seconds)
         finally:
+            # Close streams so drain threads can exit cleanly.
+            # استریم‌ها را می‌بندیم تا threadهای drain تمیز خارج شوند.
+            if self._proc.stdout:
+                self._proc.stdout.close()
+            if self._proc.stderr:
+                self._proc.stderr.close()
             self._proc = None
+            self._stdout_thread = None
+            self._stderr_thread = None
 
     def is_alive(self) -> bool:
         return self._proc is not None and self._proc.poll() is None

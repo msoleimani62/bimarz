@@ -1,11 +1,6 @@
-"""Pure dataclasses with zero UI dependency, mirroring the
-`models.py` pattern already proven in open-downloader-cli: designed from
-day one to be reusable by a future desktop GUI or Android app without any
-rewrite.
+"""Pure dataclasses with zero UI dependency.
 
-دیتاکلاس‌های خالص و بدون وابستگی به UI، مطابق همان الگوی `models.py` که در
-open-downloader-cli جواب داده؛ از همان ابتدا طوری طراحی شده‌اند که یک GUI
-دسکتاپ یا اپ اندروید آینده بتواند بدون بازنویسی از آن‌ها استفاده کند.
+دیتاکلاس‌های خالص و بدون وابستگی به UI.
 """
 
 from __future__ import annotations
@@ -15,9 +10,9 @@ from enum import Enum
 
 
 class Environment(str, Enum):
-    """Detected runtime environment, same taxonomy as open-downloader-cli.
+    """Detected runtime environment.
 
-    محیط اجرای شناسایی‌شده، با همان دسته‌بندی open-downloader-cli.
+    محیط اجرای شناسایی‌شده.
     """
 
     ANDROID_TERMUX = "android_termux"
@@ -27,17 +22,27 @@ class Environment(str, Enum):
     OTHER = "other"
 
 
+class GrpcStatus(str, Enum):
+    """Three-level gRPC health status for `bimarz doctor`.
+
+    سه سطح وضعیت سلامت gRPC برای `bimarz doctor`.
+    """
+
+    not_checked = "not_checked"
+    unreachable = "unreachable"
+    listening = "listening"
+    responding = "responding"
+
+    NOT_CHECKED = not_checked
+    UNREACHABLE = unreachable
+    LISTENING = listening
+    RESPONDING = responding
+
 @dataclass(frozen=True)
 class VlessRealityOutbound:
-    """All fields needed to describe a single VLESS + Reality + Vision
-    outbound, parsed from a vless:// share link. This is intentionally the
-    only protocol/security combination this project parses — see
-    subscription.py for why.
+    """All fields needed to describe a single VLESS + Reality + Vision outbound.
 
-    تمام فیلدهای لازم برای توصیف یک outbound از نوع VLESS + Reality +
-    Vision، که از یک لینک اشتراک vless:// پارس شده. این عمداً تنها
-    ترکیب پروتکل/امنیتی است که این پروژه پارس می‌کند — دلیلش در
-    subscription.py توضیح داده شده.
+    تمام فیلدهای لازم برای توصیف یک outbound از نوع VLESS + Reality + Vision.
     """
 
     uuid: str
@@ -56,9 +61,9 @@ class VlessRealityOutbound:
 
 @dataclass(frozen=True)
 class ServerProfile:
-    """A single saved server profile (one VLESS+Reality+Vision endpoint).
+    """A single saved server profile.
 
-    یک پروفایل سرور ذخیره‌شده (یک نقطه‌ی اتصال VLESS+Reality+Vision).
+    یک پروفایل سرور ذخیره‌شده.
     """
 
     profile_id: str
@@ -84,15 +89,13 @@ class HealthCheckResult:
 
 @dataclass(frozen=True)
 class FailoverEvent:
-    """Record of an automatic failover switch, kept for the audit log.
+    """Record of an automatic failover switch.
 
-    ثبت یک رویداد سوییچ خودکار failover، برای لاگ حسابرسی.
+    ثبت یک رویداد سوییچ خودکار failover.
 
-    NOTE: never include raw UUIDs/private keys here — only opaque
-    `profile_id`/`tag` values, per the project's logging rule.
+    NOTE: never include raw UUIDs/private keys here.
 
-    نکته: هرگز UUID/کلید خصوصی خام اینجا قرار نگیرد — فقط مقادیر مبهم
-    `profile_id`/`tag`، طبق قانون لاگ‌نویسی پروژه.
+    نکته: هرگز UUID/کلید خصوصی خام اینجا قرار نگیرد.
     """
 
     from_profile_id: str | None
@@ -103,11 +106,9 @@ class FailoverEvent:
 
 @dataclass
 class DoctorReport:
-    """Everything `bimarz doctor` prints, collected as data first so both the
-    CLI and a future GUI can render it independently.
+    """Everything `bimarz doctor` prints, collected as data first.
 
-    هر چیزی که `bimarz doctor` چاپ می‌کند، ابتدا به‌صورت داده جمع‌آوری می‌شود تا
-    هم CLI و هم یک GUI آینده بتوانند مستقل آن را نمایش دهند.
+    هر چیزی که `bimarz doctor` چاپ می‌کند، ابتدا به‌صورت داده جمع‌آوری می‌شود.
     """
 
     bimarz_version: str
@@ -115,6 +116,35 @@ class DoctorReport:
     xray_binary_found: bool
     xray_binary_path: str | None
     xray_version: str | None
-    grpc_reachable: bool
+    grpc_status: GrpcStatus
+    grpc_endpoint: str
     profiles_count: int
+    # وضعیت فعلی kill-switch.
+    # Current kill-switch state.
+    killswitch_active: bool = False
     warnings: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class KillSwitchState:
+    """Current state of the kill-switch.
+
+    وضعیت فعلی kill-switch.
+    """
+
+    kernel_capable: bool
+    active: bool
+    interface: str | None = None
+    xray_uid: int | None = None
+
+
+@dataclass(frozen=True)
+class DNSGuardConfig:
+    """Configuration for DNS leak protection.
+
+    کانفیگ محافظت در برابر نشت DNS.
+    """
+
+    doh_server: str = "https+local://1.1.1.1/dns-query"
+    query_strategy: str = "UseIP"
+    tag: str = "dns-out"

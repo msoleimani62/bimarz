@@ -14,7 +14,7 @@ project — the two must never drift apart.
 
 from pathlib import Path
 
-BIMARZ_VERSION = "0.1.0"
+BIMARZ_VERSION = "0.2.0"
 
 # دایرکتوری تنظیمات کاربر: پروفایل‌های سرور رمزنگاری‌شده، لاگ‌ها، کش وضعیت.
 # User config directory: encrypted server profiles, logs, cached state.
@@ -47,3 +47,43 @@ GRPC_CONNECT_RETRY_DELAY_SECONDS = 0.5
 # مهلت زمانی پیش‌فرض (ثانیه) برای هر تست سلامت یک سرور.
 # Default timeout (seconds) for each per-server health check.
 HEALTHCHECK_TIMEOUT_SECONDS = 5.0
+
+# چند بار متوالی باید تست سلامت پروفایل فعال fail شود تا failover
+# خودکار فعال شود.
+# How many consecutive failed health checks on the active profile before
+# automatic failover kicks in.
+FAILOVER_CONSECUTIVE_FAILURES_THRESHOLD = 3
+
+# فاصله‌ی زمانی (ثانیه) بین دورهای تست سلامت در طول یک اتصال با
+# --auto-failover فعال.
+# Interval (seconds) between health-check rounds during a connection with
+# --auto-failover enabled.
+FAILOVER_CHECK_INTERVAL_SECONDS = 30.0
+
+# مهلت زمانی پیش‌فرض (ثانیه) برای probe پورت gRPC در doctor.
+# Default timeout (seconds) for the gRPC port probe in doctor.
+DOCTOR_GRPC_PROBE_TIMEOUT_SECONDS = 2.0
+
+# نام متغیر محیطی برای override کردن timeout مربوط به doctor.
+# Environment variable name to override the doctor probe timeout.
+DOCTOR_GRPC_PROBE_TIMEOUT_ENV_VAR = "BIMARZ_DOCTOR_TIMEOUT"
+
+# Tag for the active xray outbound managed by bimarz.
+# تگ outbound فعال که توسط bimarز مدیریت می‌شود.
+ACTIVE_OUTBOUND_TAG = "bimarz-active"
+
+# Default gRPC host for local xray-core API.
+# میزبان پیش‌فرض gRPC برای API محلی xray-core.
+DEFAULT_GRPC_HOST = "127.0.0.1"
+
+# Default gRPC port for local xray-core API.
+# پورت پیش‌فرض gRPC برای API محلی xray-core.
+DEFAULT_GRPC_PORT = 10085
+
+# Maximum retries when connecting to the engine.
+# حداکثر تلاش مجدد هنگام اتصال به engine.
+ENGINE_CONNECT_MAX_RETRIES = 5
+
+# Delay between engine connection retries in seconds.
+# فاصله زمانی بین تلاش‌های مجدد اتصال engine بر حسب ثانیه.
+ENGINE_CONNECT_RETRY_DELAY = 1.0

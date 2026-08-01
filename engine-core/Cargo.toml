@@ -1,15 +1,25 @@
 [package]
 name = "engine-core"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.78"
 description = "Rust engine adapter for xray-core: gRPC control, health-check, kill-switch, DNS leak guard"
 license = "MIT"
+repository = "https://github.com/msoleimani62/bimarz"
+homepage = "https://github.com/msoleimani62/bimarz"
+documentation = "https://github.com/msoleimani62/bimarz"
+keywords = [
+    "xray",
+    "vpn",
+    "proxy",
+    "vless",
+    "reality",
+]
+categories = [
+    "network-programming",
+    "api-bindings",
+]
 
-# Built as a Python extension module via PyO3, and also usable as a
-# plain Rust library/binary for the health-check and kill-switch daemons.
-# به‌عنوان یک ماژول پایتونی از طریق PyO3 ساخته می‌شود، و همچنین به‌عنوان یک
-# کتابخانه/باینری خالص Rust برای دیمن‌های health-check و kill-switch قابل استفاده است.
 [lib]
 name = "_engine_core"
 crate-type = ["cdylib", "rlib"]
@@ -34,3 +44,9 @@ tonic-build = "0.12"
 
 [dev-dependencies]
 tokio-test = "0.4"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"

@@ -4,8 +4,19 @@
 Cargo.lock
 
 # Fetched proto files (must be re-fetched per engine-core/proto/README.md)
-engine-core/proto/app/
-engine-core/proto/common/
+# Everything under proto/ except this directory's own README.md — the
+# fetched tree covers app/, common/, core/, transport/, proxy/, all
+# top-level, not just app/+common/.
+engine-core/proto/*
+!engine-core/proto/README.md
+
+# Compiled PyO3 extension — platform-specific, must never be committed;
+# each contributor builds it locally with `maturin develop --release`.
+orchestrator/bimarz/_engine_core*.so
+orchestrator/bimarz/_engine_core*.pyd
+
+# Editor/tool backup files left over from sed -i.bak or similar
+*.bak
 
 # Python
 __pycache__/

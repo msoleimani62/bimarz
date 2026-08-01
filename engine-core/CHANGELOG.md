@@ -5,6 +5,8 @@ This file follows the [Keep a Changelog](https://keepachangelog.com/) format.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-07-30
+
 ### Added — افزوده شد (فاز ۵: تکمیل CLI و بسته‌بندی)
 
 - `orchestrator/bimarz/models.py`: `GrpcStatus` enum with multiple states (`not_checked`, `unreachable`, `listening`, `responding`) for accurate gRPC health reporting in `bimarz doctor`.
@@ -22,6 +24,16 @@ This file follows the [Keep a Changelog](https://keepachangelog.com/) format.
 - `orchestrator/bimarz/cli.py`: `_render_doctor_report` now color-codes and explains each `GrpcStatus` state.
 - `orchestrator/bimarz/constants.py`: version bumped to `0.2.0` (synchronized with `pyproject.toml`).
 
+### Fixed — رفع شد
+
+- `orchestrator/bimarz/cli.py`: `_connect_async` now passes the real user UID (`os.getuid()`) to `KillSwitchManager.activate()`, preventing the kill-switch from blocking xray-core's own tunnel traffic.
+- `engine-core/src/killswitch.rs`: `build_killswitch_rules` now returns a clear error when `xray_uid` is `None` instead of generating a dangerous blanket-DROP rule that would break the connection.
+
+### Security — امنیت
+
+- Improved kill-switch rule validation to prevent accidental blanket blocking rules.
+- Improved diagnostic handling to make network protection failures visible instead of silently applying unsafe defaults.
+
 ### Architecture decisions — تصمیمات معماری (فاز ۵)
 
 - **PyPI deferred, not rejected:** publishing to PyPI has been postponed until the CI pipeline can reliably produce wheels for every supported platform. GitHub Releases is currently the primary distribution channel because it can publish multiple platform-specific wheels within a single release.
@@ -32,5 +44,14 @@ This file follows the [Keep a Changelog](https://keepachangelog.com/) format.
 
 ### Added — افزوده شد
 
-- (تمام entryهای قبلی فاز ۰ تا ۴ اینجا باقی می‌مانند — حذف نشده‌اند)
+- Initial project skeleton: Python orchestrator + Rust engine-core via PyO3/maturin.
+- gRPC connection skeleton to xray-core with `EngineClient` (Rust) and `PyEngineClient` (Python bridge).
+- `bimarz doctor` command with environment detection and xray-core binary discovery.
+- Platform detection for Arch Linux, Kali NetHunter/Termux, WSL, and generic Linux.
+- CI skeleton with GitHub Actions for Rust tests and Python pytest.
 
+## Version Links
+
+[Unreleased]: https://github.com/msoleimani62/bimarz/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/msoleimani62/bimarz/releases/tag/v0.2.0
+[0.1.0]: https://github.com/msoleimani62/bimarz/releases/tag/v0.1.0

@@ -5,8 +5,8 @@
 
 [فارسی](#فارسی) | [English](#english)
 
-> ⚠️ **وضعیت فعلی پروژه:** این پروژه در **فاز ۱ از ۸** نقشه راه است. فقط دستور `bimarz doctor` و اسکلت اتصال gRPC آماده‌اند. جزئیات کامل در بخش «وضعیت و نقشه راه» پایین همین صفحه.
-> ⚠️ **Current project status:** this project is at **phase 1 of 8** on the roadmap. Only `bimarz doctor` and the gRPC connection skeleton exist so far. Full details in the "Status & Roadmap" section below.
+> ⚠️ **وضعیت فعلی پروژه:** فازهای **۰ تا ۴ از ۸** نقشه راه کامل و به‌صورت end-to-end روی سخت‌افزار واقعی تایید شده‌اند (نه فقط کامپایل‌شده). جزئیات کامل در بخش «وضعیت و نقشه راه» پایین همین صفحه.
+> ⚠️ **Current project status:** phases **0 through 4 of 8** on the roadmap are complete and verified end-to-end on real hardware (not just compiling). Full details in the "Status & Roadmap" section below.
 
 ---
 
@@ -21,31 +21,30 @@
 
 - مدیریت چند پروفایل سرور بدون نیاز به ویرایش دستی فایل JSON
 - تست خودکار سلامت سرورها و سوییچ بی‌وقفه به بهترین گزینه (failover)
-- Kill-switch سطح سیستم تا در صورت قطع تونل، هیچ ترافیکی لو نرود
-- جلوگیری از نشت DNS
+- Kill-switch سطح سیستم تا در صورت قطع تونل، هیچ ترافیکی لو نرود (با fallback نرم‌افزاری صادقانه در محیط‌هایی مثل Termux/proot که دسترسی کرنل کامل ندارند)
+- جلوگیری از نشت DNS با اجبار DNS-over-HTTPS از طریق خودِ تونل
 - یک CLI واحد و ساده، با پیام‌های خطای دقیق و قابل‌فهم
 
 ### چرا این معماری؟
 
 | لایه | زبان | چرا |
 |---|---|---|
-| اتصال gRPC به xray-core، health-check موازی، kill-switch | **Rust** | کارایی و ایمنی حافظه برای صدها اتصال همزمان و مدیریت دقیق شبکه |
-| CLI، مدیریت پروفایل، پارس subscription | **Python** | سرعت توسعه، خوانایی، تجربه‌ی از قبل اثبات‌شده در پروژه‌ی [open-downloader-cli](https://github.com/msoleimani62/open-downloader-cli) |
+| اتصال gRPC به xray-core، health-check موازی، kill-switch، DNS guard | **Rust** | کارایی و ایمنی حافظه برای صدها اتصال همزمان و مدیریت دقیق شبکه |
+| CLI، مدیریت پروفایل، پارس subscription، منطق failover | **Python** | سرعت توسعه، خوانایی، تجربه‌ی از قبل اثبات‌شده در پروژه‌ی [open-downloader-cli](https://github.com/msoleimani62/open-downloader-cli) |
 
-جزئیات کامل تصمیمات معماری در فایل نقشه راه پروژه (که در ابتدای همکاری تهیه
-شد) و در `CHANGELOG.md` مستند شده‌اند.
+جزئیات کامل تصمیمات معماری و باگ‌های واقعی که در طول توسعه پیدا و رفع شدند (از جمله یک باگ حیاتی routing و یک باگ حیاتی UID در kill-switch) در `CHANGELOG.md` مستند شده‌اند.
 
 ### وضعیت و نقشه راه
 
 | فاز | عنوان | وضعیت |
 |---|---|---|
-| ۰ | اثبات مفهوم gRPC | ✅ راهنمای دستی آماده (`engine-core/proto/README.md`) |
-| ۱ | Engine Adapter (اتصال gRPC پایه) | 🚧 اسکلت آماده، پیام‌های gRPC هنوز به proto واقعی وصل نشده‌اند |
-| ۲ | مدیریت پروفایل و Subscription | ⏳ شروع نشده |
-| ۳ | Health-check و Failover خودکار | ⏳ شروع نشده |
-| ۴ | Kill-switch و ضدنشت DNS | ⏳ شروع نشده |
+| ۰ | اثبات مفهوم gRPC | ✅ کامل |
+| ۱ | Engine Adapter (اتصال gRPC واقعی) | ✅ کامل — تایید end-to-end در برابر xray-core زنده |
+| ۲ | مدیریت پروفایل و Subscription | ✅ کامل — پارس VLESS+Reality، ذخیره‌ی رمزنگاری‌شده، `bimarz connect` |
+| ۳ | Health-check و Failover خودکار | ✅ کامل — `bimarz healthcheck`, `bimarz connect --auto-failover` |
+| ۴ | Kill-switch و ضدنشت DNS | ✅ کامل — `bimarz killswitch`, `bimarz connect --killswitch` |
 | ۵ | تکمیل CLI و بسته‌بندی | ⏳ شروع نشده |
-| ۶ | تست و CI کامل | 🚧 اسکلت CI آماده، هنوز کامل تایید نشده |
+| ۶ | تست و CI کامل | 🚧 CI پایه آماده (ruff+pytest+cargo)، integration test با xray-core واقعی هنوز نه |
 | ۷ | رابط گرافیکی دسکتاپ | ⏳ شروع نشده |
 | ۸ | اپ اندروید | ⏳ شروع نشده |
 
@@ -56,45 +55,53 @@
 این پروژه هنوز به‌صورت پکیج آماده منتشر نشده. نصب فعلی فقط برای توسعه است.
 
 ```bash
-# ۱. کلون کردن ریپازیتوری
 git clone https://github.com/msoleimani62/bimarz.git
 cd bimarz
-
-# ۲. واکشی فایل‌های proto رسمی xray-core (نیاز به اینترنت)
-#    دستورهای دقیق در engine-core/proto/README.md
 cat engine-core/proto/README.md
+```
 
-# ۳. نصب Rust (اگر از قبل نصب نیست)
+بعد از خواندن راهنمای proto (چون فایل‌های proto رسمی xray-core باید جدا واکشی شوند):
+
+```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# ۴. ساخت محیط مجازی پایتون و نصب ابزار build
 python3 -m venv .venv
 source .venv/bin/activate
 pip install maturin
-
-# ۵. ساخت و نصب پکیج (شامل کامپایل بخش Rust)
 maturin develop --release
-
-# ۶. تست نصب
 bimarz doctor
 ```
 
 ### استفاده
 
-فعلاً فقط دستور تشخیصی زیر پیاده‌سازی شده:
-
 ```bash
-bimarz doctor                       # بررسی کامل محیط، باینری xray-core و وضعیت پروفایل‌ها
-bimarz doctor --xray-bin /path/xray # مسیر صریح باینری xray-core
-bimarz --debug doctor               # نمایش کامل خطای فنی در صورت بروز مشکل
+bimarz doctor                          # بررسی کامل محیط، باینری xray-core، وضعیت پروفایل‌ها و kill-switch
+bimarz doctor --xray-bin /path/xray    # مسیر صریح باینری xray-core
+bimarz --debug doctor                  # نمایش کامل خطای فنی در صورت بروز مشکل
+
+bimarz profile add "vless://..."       # افزودن پروفایل از یک لینک اشتراک VLESS+Reality+Vision
+bimarz profile list                    # نمایش پروفایل‌های ذخیره‌شده
+bimarz profile remove <id>             # حذف یک پروفایل با شناسه‌اش
+
+bimarz healthcheck                     # تست سلامت موازی همه‌ی پروفایل‌های ذخیره‌شده
+
+bimarz connect <id>                              # اجرای xray-core و اتصال با یک پروفایل (Ctrl+C برای قطع)
+bimarz connect <id> --auto-failover              # سوییچ خودکار به بهترین جایگزین در صورت قطعی مکرر
+bimarz connect <id> --killswitch                 # جلوگیری از نشت ترافیک در صورت قطع ناگهانی تونل
+bimarz connect <id> --auto-failover --killswitch # هر دو با هم
+
+bimarz killswitch enable --xray-uid $(id -u)     # فعال‌سازی دستی kill-switch (خارج از bimarz connect)
+bimarz killswitch disable                        # غیرفعال‌سازی
+bimarz killswitch status                         # نمایش وضعیت فعلی
 ```
+
+پروفایل‌ها با یک پسورد رمزنگاری می‌شوند (اولین بار که ذخیره می‌کنی، همون پسورد پرسیده و ثابت می‌شود). برای اسکریپت‌نویسی/CI، به‌جای پرسیدن دستی، متغیر محیطی `BIMARZ_PROFILE_PASSWORD` را تنظیم کن.
 
 ### پلتفرم‌های پشتیبانی‌شده
 
 | پلتفرم | وضعیت تشخیص خودکار | یادداشت |
 |---|---|---|
-| آرچ لینوکس (دسکتاپ) | ✅ | محیط توسعه‌ی اصلی پروژه |
-| کالی NetHunter داخل Termux (proot/chroot) | ✅ | تشخیص از طریق نشانه‌های mount کرنل اندروید؛ توجه: kill-switch کامل در این محیط بدون روت هاست ممکن نیست (فاز ۴) |
+| آرچ لینوکس (دسکتاپ) | ✅ | kill-switch سطح کرنل کامل در دسترس (با روت) |
+| کالی NetHunter داخل Termux (proot/chroot) | ✅ | تشخیص از طریق نشانه‌های mount کرنل اندروید؛ kill-switch سطح کرنل بدون روت هاست ممکن نیست — به‌صورت خودکار به fallback نرم‌افزاری (قطع اتصال تمیز به‌جای قفل شبکه) سوییچ می‌کند |
 | ترموکس ساده (بدون NetHunter) | ✅ | |
 | WSL | ✅ | |
 | سایر توزیع‌های لینوکس | عمومی | باید به‌عنوان `desktop_linux`/`other` شناسایی شود |
@@ -102,7 +109,7 @@ bimarz --debug doctor               # نمایش کامل خطای فنی در �
 ### مشارکت
 
 Issue ها و Pull Request ها در ریپازیتوری GitHub پروژه پذیرفته می‌شوند. لطفاً
-قبل از هر PR، `ruff check`/`ruff format`/`cargo clippy`/`cargo test` را
+قبل از هر PR، `ruff check`/`ruff format`/`cargo clippy`/`cargo test`/`pytest` را
 اجرا و سبز کنید.
 
 ### مجوز
@@ -123,31 +130,30 @@ layer *around* that binary:
 
 - Managing multiple server profiles without hand-editing JSON
 - Automatic health-checking with seamless failover to the best server
-- A system-level kill-switch so no traffic leaks if the tunnel drops
-- DNS leak protection
+- A system-level kill-switch so no traffic leaks if the tunnel drops (with an honest software fallback in environments like Termux/proot that lack full kernel access)
+- DNS leak protection by forcing DNS-over-HTTPS through the tunnel itself
 - A single, coherent CLI with precise, understandable error messages
 
 ### Why this architecture?
 
 | Layer | Language | Why |
 |---|---|---|
-| gRPC connection to xray-core, parallel health-checks, kill-switch | **Rust** | Performance and memory safety for hundreds of concurrent connections and precise network handling |
-| CLI, profile management, subscription parsing | **Python** | Development speed, readability, a pattern already proven in [open-downloader-cli](https://github.com/msoleimani62/open-downloader-cli) |
+| gRPC connection to xray-core, parallel health-checks, kill-switch, DNS guard | **Rust** | Performance and memory safety for hundreds of concurrent connections and precise network handling |
+| CLI, profile management, subscription parsing, failover logic | **Python** | Development speed, readability, a pattern already proven in [open-downloader-cli](https://github.com/msoleimani62/open-downloader-cli) |
 
-Full architectural reasoning is documented in the project's roadmap
-document (produced at project kickoff) and in `CHANGELOG.md`.
+Full architectural reasoning, and real bugs found and fixed during development (including a critical routing bug and a critical kill-switch UID bug), are documented in `CHANGELOG.md`.
 
 ### Status & Roadmap
 
 | Phase | Title | Status |
 |---|---|---|
-| 0 | gRPC proof-of-concept | ✅ Manual guide ready (`engine-core/proto/README.md`) |
-| 1 | Engine Adapter (base gRPC connection) | 🚧 Skeleton ready; gRPC messages not yet wired to real proto |
-| 2 | Profile & Subscription Manager | ⏳ Not started |
-| 3 | Health-check & automatic Failover | ⏳ Not started |
-| 4 | Kill-switch & DNS leak guard | ⏳ Not started |
+| 0 | gRPC proof-of-concept | ✅ Complete |
+| 1 | Engine Adapter (real gRPC connection) | ✅ Complete — verified end-to-end against live xray-core |
+| 2 | Profile & Subscription Manager | ✅ Complete — VLESS+Reality parsing, encrypted storage, `bimarz connect` |
+| 3 | Health-check & automatic Failover | ✅ Complete — `bimarz healthcheck`, `bimarz connect --auto-failover` |
+| 4 | Kill-switch & DNS leak guard | ✅ Complete — `bimarz killswitch`, `bimarz connect --killswitch` |
 | 5 | CLI polish & packaging | ⏳ Not started |
-| 6 | Full test suite & CI | 🚧 CI skeleton ready, not yet fully verified |
+| 6 | Full test suite & CI | 🚧 Base CI ready (ruff+pytest+cargo), real xray-core integration test not yet added |
 | 7 | Desktop GUI | ⏳ Not started |
 | 8 | Android app | ⏳ Not started |
 
@@ -155,49 +161,54 @@ Every technical change is logged in [`CHANGELOG.md`](./CHANGELOG.md).
 
 ### Installation (from source — not yet published)
 
-This project is not published as a ready-made package yet. Current
-installation is for development only.
-
 ```bash
-# 1. Clone the repository
 git clone https://github.com/msoleimani62/bimarz.git
 cd bimarz
-
-# 2. Fetch the official xray-core proto files (needs internet)
-#    Exact steps in engine-core/proto/README.md
 cat engine-core/proto/README.md
+```
 
-# 3. Install Rust (if not already installed)
+After reading the proto guide (the official xray-core proto files must be fetched separately):
+
+```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# 4. Create a Python virtual environment and install the build tool
 python3 -m venv .venv
 source .venv/bin/activate
 pip install maturin
-
-# 5. Build and install the package (compiles the Rust part too)
 maturin develop --release
-
-# 6. Verify the install
 bimarz doctor
 ```
 
 ### Usage
 
-Only the diagnostic command is implemented so far:
-
 ```bash
-bimarz doctor                       # full check of environment, xray-core binary, and profile status
-bimarz doctor --xray-bin /path/xray # explicit path to the xray-core binary
-bimarz --debug doctor                # show full technical traceback on failure
+bimarz doctor                          # full check of environment, xray-core binary, profile status, kill-switch
+bimarz doctor --xray-bin /path/xray    # explicit path to the xray-core binary
+bimarz --debug doctor                  # show full technical traceback on failure
+
+bimarz profile add "vless://..."       # add a profile from a VLESS+Reality+Vision share link
+bimarz profile list                    # list saved profiles
+bimarz profile remove <id>             # remove a profile by its id
+
+bimarz healthcheck                     # check reachability/latency of all saved profiles in parallel
+
+bimarz connect <id>                              # start xray-core and connect using a profile (Ctrl+C to disconnect)
+bimarz connect <id> --auto-failover              # auto-switch to the best alternative on repeated failures
+bimarz connect <id> --killswitch                 # prevent traffic leaks if the tunnel drops unexpectedly
+bimarz connect <id> --auto-failover --killswitch # both together
+
+bimarz killswitch enable --xray-uid $(id -u)     # manually activate the kill-switch (outside bimarz connect)
+bimarz killswitch disable                        # deactivate it
+bimarz killswitch status                         # show current status
 ```
+
+Profiles are encrypted with a password (set the first time you save one). For scripting/CI, set the `BIMARZ_PROFILE_PASSWORD` environment variable instead of being prompted interactively.
 
 ### Supported platforms
 
 | Platform | Auto-detection status | Notes |
 |---|---|---|
-| Arch Linux (desktop) | ✅ | Primary development environment |
-| Kali NetHunter inside Termux (proot/chroot) | ✅ | Detected via Android kernel mount signals; note: a full kill-switch is not possible in this environment without host root (phase 4) |
+| Arch Linux (desktop) | ✅ | Full kernel-level kill-switch available (with root) |
+| Kali NetHunter inside Termux (proot/chroot) | ✅ | Detected via Android kernel mount signals; kernel-level kill-switch is not possible without host root — automatically falls back to the software path (clean disconnect instead of a network-wide lock) |
 | Plain Termux (no NetHunter) | ✅ | |
 | WSL | ✅ | |
 | Other Linux distros | Generic | Should detect as `desktop_linux`/`other` |
@@ -205,7 +216,7 @@ bimarz --debug doctor                # show full technical traceback on failure
 ### Contributing
 
 Issues and Pull Requests are welcome on the project's GitHub repository.
-Please run `ruff check`/`ruff format`/`cargo clippy`/`cargo test` clean
+Please run `ruff check`/`ruff format`/`cargo clippy`/`cargo test`/`pytest` clean
 before opening a PR.
 
 ### License

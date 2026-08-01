@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 
-from bimarz.xray_config import build_connect_config
+from bimarz.xray_config import ACTIVE_OUTBOUND_TAG, build_connect_config
 
 
 def test_produces_valid_json() -> None:
@@ -43,8 +43,38 @@ def test_has_a_placeholder_outbound_so_xray_core_starts_cleanly() -> None:
     assert config["outbounds"][0]["protocol"] == "freedom"
 
 
+def test_routing_sends_socks_traffic_to_the_active_outbound_tag() -> None:
+    config = json.loads(build_connect_config())
+    rules = config["routing"]["rules"]
+    socks_rules = [r for r in rules if r.get("inboundTag") == ["socks-in"]]
+    assert len(socks_rules) == 1
+    assert socks_rules[0]["outboundTag"] == ACTIVE_OUTBOUND_TAG
+
+
 def test_stats_and_policy_sections_present_for_get_stats_to_work() -> None:
     config = json.loads(build_connect_config())
     assert "stats" in config
     assert config["policy"]["system"]["statsOutboundUplink"] is True
     assert config["policy"]["system"]["statsOutboundDownlink"] is True
+
+
+def test_dns_guard_adds_dns_outbound_when_enabled() -> None:
+    config = json.loads(build_connect_config(enable_dns_guard=True))
+    dns_outbounds = [o for o in config["outbounds"] if o.get("tag") == "dns-out"]
+    assert len(dns_outbounds) == 1
+    assert dns_outbounds[0]["protocol"] == "dns"
+    assert "dns" in config
+
+
+def test_dns_guard_adds_routing_rule_for_port_53() -> None:
+    config = json.loads(build_connect_config(enable_dns_guard=True))
+    dns_rules = [r for r in config["routing"]["rules"] if r.get("port") == "53"]
+    assert len(dns_rules) == 1
+    assert dns_rules[0]["outboundTag"] == "dns-out"
+
+
+def test_dns_guard_can_be_disabled() -> None:
+    config = json.loads(build_connect_config(enable_dns_guard=False))
+    assert "dns" not in config
+    dns_outbounds = [o for o in config["outbounds"] if o.get("tag") == "dns-out"]
+    assert len(dns_outbounds) == 0

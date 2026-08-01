@@ -204,3 +204,199 @@ pub fn build_vless_reality_outbound(params: VlessRealityParams) -> EngineResult<
         comment: String::new(),
     })
 }
+
+// این تست‌ها هیچ نیازی به xray-core در حال اجرا یا شبکه ندارند — فقط
+// خروجی خالص build_vless_reality_outbound را در برابر مقادیر واقعی
+// proto (که در گفتگوی توسعه‌ی این پروژه دستی تایید شدند) بررسی می‌کنند.
+// اجرا با: cargo test --manifest-path engine-core/Cargo.toml
+//
+// These tests need no running xray-core and no network — they only check
+// build_vless_reality_outbound's pure output against the real proto
+// values (manually confirmed during this project's development). Run
+// with: cargo test --manifest-path engine-core/Cargo.toml
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_params() -> VlessRealityParams {
+        VlessRealityParams {
+            tag: "test-tag".to_string(),
+            uuid: "8f9a3c2e-1234-4a5b-8c9d-0e1f2a3b4c5d".to_string(),
+            flow: "xtls-rprx-vision".to_string(),
+            address: "example.com".to_string(),
+            port: 443,
+            network: "tcp".to_string(),
+            sni: "www.microsoft.com".to_string(),
+            fingerprint: "chrome".to_string(),
+            // base64url (no padding) encoding of 32 zero bytes — a
+            // syntactically valid but not cryptographically real key,
+            // sufficient for testing the encode/decode path.
+            public_key_b64: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".to_string(),
+            short_id_hex: "a1b2c3".to_string(),
+            spider_x: "/".to_string(),
+        }
+    }
+
+    #[test]
+    fn builds_outbound_with_the_given_tag() {
+        let outbound = build_vless_reality_outbound(sample_params()).unwrap();
+        assert_eq!(outbound.tag, "test-tag");
+    }
+
+    #[test]
+    fn sender_settings_type_is_the_correct_fully_qualified_name() {
+        let outbound = build_vless_reality_outbound(sample_params()).unwrap();
+        let sender_settings = outbound.sender_settings.unwrap();
+        assert_eq!(sender_settings.r#type, "xray.app.proxyman.SenderConfig");
+    }
+
+    #[test]
+    fn proxy_settings_type_is_the_correct_fully_qualified_name() {
+        let outbound = build_vless_reality_outbound(sample_params()).unwrap();
+        let proxy_settings = outbound.proxy_settings.unwrap();
+        assert_eq!(proxy_settings.r#type, "xray.proxy.vless.outbound.Config");
+    }
+
+    #[test]
+    fn sender_settings_decodes_to_a_sender_config_wrapping_a_stream_config() {
+        let outbound = build_vless_reality_outbound(sample_params()).unwrap();
+        let sender_settings = outbound.sender_settings.unwrap();
+        let sender_config = SenderConfig::decode(sender_settings.value.as_slice()).unwrap();
+
+        // این دقیقاً همون لایه‌ی میانی است که فراموش کردنش باعث خطای
+        // واقعی gRPC ("settings is not SenderConfig") شد؛ این تست
+        // مطمئن می‌شود دیگر هرگز حذف نشود.
+        // This is exactly the middle layer whose omission caused the real
+        // gRPC error ("settings is not SenderConfig"); this test ensures
+        // it is never removed again.
+        let stream_config = sender_config.stream_settings.unwrap();
+        assert_eq!(stream_config.protocol_name, "tcp");
+        assert_eq!(stream_config.security_type, "xray.transport.internet.reality.Config");
+    }
+
+    #[test]
+    fn reality_config_carries_the_decoded_public_key_bytes() {
+        let outbound = build_vless_reality_outbound(sample_params()).unwrap();
+        let sender_settings = outbound.sender_settings.unwrap();
+        let sender_config = SenderConfig::decode(sender_settings.value.as_slice()).unwrap();
+        let stream_config = sender_config.stream_settings.unwrap();
+        let reality_settings = &stream_config.security_settings[0];
+        let reality_config = RealityConfig::decode(reality_settings.value.as_slice()).unwrap();
+
+        assert_eq!(reality_config.public_key, vec![0u8; 32]);
+        assert_eq!(reality_config.server_name, "www.microsoft.com");
+        assert_eq!(reality_config.fingerprint, "chrome");
+        assert_eq!(reality_config.spider_x, "/");
+        assert_eq!(reality_config.short_id, vec![0xa1, 0xb2, 0xc3]);
+    }
+
+    #[test]
+    fn proxy_settings_decodes_to_the_vless_account_with_correct_fields() {
+        let outbound = build_vless_reality_outbound(sample_params()).unwrap();
+        let proxy_settings = outbound.proxy_settings.unwrap();
+        let vless_outbound = VlessOutboundConfig::decode(proxy_settings.value.as_slice()).unwrap();
+
+        assert_eq!(vless_outbound.vnext.len(), 1);
+        let endpoint = &vless_outbound.vnext[0];
+        assert_eq!(endpoint.port, 443);
+        assert_eq!(endpoint.user.len(), 1);
+
+        let account_message = endpoint.user[0].account.as_ref().unwrap();
+        assert_eq!(account_message.r#type, "xray.proxy.vless.Account");
+        let account = VlessAccount::decode(account_message.value.as_slice()).unwrap();
+        assert_eq!(account.id, "8f9a3c2e-1234-4a5b-8c9d-0e1f2a3b4c5d");
+        assert_eq!(account.flow, "xtls-rprx-vision");
+        assert_eq!(account.encryption, "none");
+    }
+
+    #[test]
+    fn domain_address_produces_the_domain_variant() {
+        let mut params = sample_params();
+        params.address = "my-server.example.com".to_string();
+        let outbound = build_vless_reality_outbound(params).unwrap();
+        let proxy_settings = outbound.proxy_settings.unwrap();
+        let vless_outbound = VlessOutboundConfig::decode(proxy_settings.value.as_slice()).unwrap();
+        let address = vless_outbound.vnext[0].address.clone().unwrap().address.unwrap();
+
+        match address {
+            xray::common::net::ip_or_domain::Address::Domain(domain) => {
+                assert_eq!(domain, "my-server.example.com");
+            }
+            xray::common::net::ip_or_domain::Address::Ip(_) => {
+                panic!("expected a Domain variant, got an Ip variant");
+            }
+        }
+    }
+
+    #[test]
+    fn ipv4_address_produces_the_ip_variant_with_four_bytes() {
+        let mut params = sample_params();
+        params.address = "1.2.3.4".to_string();
+        let outbound = build_vless_reality_outbound(params).unwrap();
+        let proxy_settings = outbound.proxy_settings.unwrap();
+        let vless_outbound = VlessOutboundConfig::decode(proxy_settings.value.as_slice()).unwrap();
+        let address = vless_outbound.vnext[0].address.clone().unwrap().address.unwrap();
+
+        match address {
+            xray::common::net::ip_or_domain::Address::Ip(bytes) => {
+                assert_eq!(bytes, vec![1, 2, 3, 4]);
+            }
+            xray::common::net::ip_or_domain::Address::Domain(_) => {
+                panic!("expected an Ip variant, got a Domain variant");
+            }
+        }
+    }
+
+    #[test]
+    fn ipv6_address_produces_the_ip_variant_with_sixteen_bytes() {
+        let mut params = sample_params();
+        params.address = "::1".to_string();
+        let outbound = build_vless_reality_outbound(params).unwrap();
+        let proxy_settings = outbound.proxy_settings.unwrap();
+        let vless_outbound = VlessOutboundConfig::decode(proxy_settings.value.as_slice()).unwrap();
+        let address = vless_outbound.vnext[0].address.clone().unwrap().address.unwrap();
+
+        match address {
+            xray::common::net::ip_or_domain::Address::Ip(bytes) => {
+                assert_eq!(bytes.len(), 16);
+            }
+            xray::common::net::ip_or_domain::Address::Domain(_) => {
+                panic!("expected an Ip variant, got a Domain variant");
+            }
+        }
+    }
+
+    #[test]
+    fn empty_short_id_produces_empty_bytes_not_an_error() {
+        let mut params = sample_params();
+        params.short_id_hex = String::new();
+        let outbound = build_vless_reality_outbound(params).unwrap();
+        let sender_settings = outbound.sender_settings.unwrap();
+        let sender_config = SenderConfig::decode(sender_settings.value.as_slice()).unwrap();
+        let stream_config = sender_config.stream_settings.unwrap();
+        let reality_config =
+            RealityConfig::decode(stream_config.security_settings[0].value.as_slice()).unwrap();
+
+        assert_eq!(reality_config.short_id, Vec::<u8>::new());
+    }
+
+    #[test]
+    fn invalid_public_key_is_rejected_with_a_clear_error() {
+        let mut params = sample_params();
+        params.public_key_b64 = "not valid base64url!!".to_string();
+        let result = build_vless_reality_outbound(params);
+        assert!(result.is_err());
+        let message = result.unwrap_err().to_string();
+        assert!(message.contains("Reality public key"), "unexpected error message: {message}");
+    }
+
+    #[test]
+    fn invalid_short_id_hex_is_rejected_with_a_clear_error() {
+        let mut params = sample_params();
+        params.short_id_hex = "not-hex-zz".to_string();
+        let result = build_vless_reality_outbound(params);
+        assert!(result.is_err());
+        let message = result.unwrap_err().to_string();
+        assert!(message.contains("short_id"), "unexpected error message: {message}");
+    }
+}
