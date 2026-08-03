@@ -212,6 +212,9 @@ class XrayProcess:
     def is_alive(self) -> bool:
         return self._proc is not None and self._proc.poll() is None
 
+    def is_running(self) -> bool:
+        return self.is_alive()
+
     @property
     def pid(self) -> int | None:
         return self._proc.pid if self._proc is not None else None

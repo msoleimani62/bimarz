@@ -163,7 +163,8 @@ class ConnectionWorker(QThread):
                     self.disconnected.emit()
 
     def _run_connect(self) -> None:
-        from bimarz.cli import _connect_with_retry, _outbound_kwargs
+        from bimarz.helpers import outbound_kwargs as _outbound_kwargs
+        from bimarz.utils.retry import connect_with_retry as _connect_with_retry
         from bimarz.engine import get_engine_client_class
 
         binary_path = find_xray_binary()
@@ -329,7 +330,7 @@ class ConnectionWorker(QThread):
         self,
         manager: FailoverManager,
     ) -> None:
-        from bimarz.cli import _outbound_kwargs
+        from bimarz.helpers import outbound_kwargs as _outbound_kwargs
 
         if not self._all_profiles:
             return
