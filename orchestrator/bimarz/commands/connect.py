@@ -68,18 +68,12 @@ async def _run_connect_async(args: argparse.Namespace, config: AppConfig) -> Non
 def run_connect(args: argparse.Namespace, config: AppConfig) -> None:
     try:
         asyncio.run(_run_connect_async(args, config))
-    except BinaryNotFoundError:
-        console.print(
-            "[red]xray-core binary not found.[/red]\n"
-            "[yellow]hint:[/yellow] install xray-core or use --xray-bin /path/to/xray\n"
-            "[yellow]hint:[/yellow] run 'bimarz doctor' for full diagnostics"
-        )
-        raise SystemExit(1)
-    except EngineNotBuiltError:
-        console.print(
-            "[red]Rust extension not built.[/red]\n"
-            "[yellow]hint:[/yellow] source .venv/bin/activate && maturin develop --release"
-        )
+    except (BinaryNotFoundError, EngineNotBuiltError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        from bimarz.errors import get_hint
+        hint = get_hint(exc)
+        if hint:
+            console.print(f"[yellow]hint:[/yellow] {hint}")
         raise SystemExit(1)
     except Exception as exc:
         if args.debug:
