@@ -32,7 +32,7 @@
 | اتصال gRPC به xray-core، health-check موازی، kill-switch، DNS guard | **Rust** | کارایی و ایمنی حافظه برای صدها اتصال همزمان و مدیریت دقیق شبکه |
 | CLI، مدیریت پروفایل، پارس subscription، منطق failover | **Python** | سرعت توسعه، خوانایی، تجربه‌ی از قبل اثبات‌شده در پروژه‌ی [open-downloader-cli](https://github.com/msoleimani62/open-downloader-cli) |
 
-جزئیات کامل تصمیمات معماری و باگ‌های واقعی که در طول توسعه پیدا و رفع شدند (از جمله یک باگ حیاتی routing و یک باگ حیاتی UID در kill-switch) در `CHANGELOG.md` مستند شده‌اند.
+معماری فعلی (فاز ۴–۵): CLI ماژولار (`cli.py` ~۱۱۷ خط) با لایه‌های `commands/`، `services/`، `parsers/`، `utils/`؛ پل PyO3 به `engine-core` (Rust)؛ gRPC واقعی به xray-core. جزئیات کامل تصمیمات معماری و باگ‌های واقعی در `CHANGELOG.md` مستند شده‌اند.
 
 ### وضعیت و نقشه راه
 
@@ -43,7 +43,7 @@
 | ۲ | مدیریت پروفایل و Subscription | ✅ کامل — پارس VLESS+Reality، ذخیره‌ی رمزنگاری‌شده، `bimarz connect` |
 | ۳ | Health-check و Failover خودکار | ✅ کامل — `bimarz healthcheck`, `bimarz connect --auto-failover` |
 | ۴ | Kill-switch و ضدنشت DNS | ✅ کامل — `bimarz killswitch`, `bimarz connect --killswitch` |
-| ۵ | تکمیل CLI و بسته‌بندی | ⏳ شروع نشده |
+| ۵ | تکمیل CLI و بسته‌بندی | ✅ کامل — doctor لایه‌ای، release workflow، build script |
 | ۶ | تست و CI کامل | 🚧 CI پایه آماده (ruff+pytest+cargo)، integration test با xray-core واقعی هنوز نه |
 | ۷ | رابط گرافیکی دسکتاپ | ⏳ شروع نشده |
 | ۸ | اپ اندروید | ⏳ شروع نشده |
@@ -152,7 +152,7 @@ Full architectural reasoning, and real bugs found and fixed during development (
 | 2 | Profile & Subscription Manager | ✅ Complete — VLESS+Reality parsing, encrypted storage, `bimarz connect` |
 | 3 | Health-check & automatic Failover | ✅ Complete — `bimarz healthcheck`, `bimarz connect --auto-failover` |
 | 4 | Kill-switch & DNS leak guard | ✅ Complete — `bimarz killswitch`, `bimarz connect --killswitch` |
-| 5 | CLI polish & packaging | ⏳ Not started |
+| 5 | CLI polish & packaging | ✅ Complete — layered doctor, release workflow, build script |
 | 6 | Full test suite & CI | 🚧 Base CI ready (ruff+pytest+cargo), real xray-core integration test not yet added |
 | 7 | Desktop GUI | ⏳ Not started |
 | 8 | Android app | ⏳ Not started |
