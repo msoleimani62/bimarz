@@ -2,6 +2,8 @@
 # ابزار bxt: اجرای تست‌های پروژه بی‌مرز و ساخت یک گزارش کامل قابل فهم برای ایجنت هوش مصنوعی
 # bxt tool: run the bimarz project's tests and build one complete report an AI agent can fully understand
 
+from __future__ import annotations
+
 import argparse
 import hashlib
 import os
@@ -12,6 +14,7 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 # پوشه‌ها و پسوندهایی که هرگز نباید وارد گزارش شوند
 # directories and extensions that must never be included in the report
@@ -31,6 +34,15 @@ ESSENTIAL_EXTENSIONS = {
 # per-file size cap so the report doesn't balloon in size
 MAX_FILE_SIZE = 200 * 1024  # 200 KB
 
+# محدودیت عمق و تعداد ورودی درخت پروژه تا در پوشه‌های بسیار بزرگ منفجر نشود
+# depth/entry caps on the project tree so it doesn't explode in very large directories
+MAX_TREE_DEPTH = 8
+MAX_TREE_ENTRIES = 250
+
+# سقف تعداد ردیف‌های هر یک از فهرست‌های هشدار/خطا در گزارش نهایی
+# cap on how many rows each of the warning/error index sections shows
+MAX_ISSUE_ROWS = 40
+
 # نگاشت پسوند به زبان برای بلوک‌های کد در گزارش
 # extension-to-language mapping for fenced code blocks in the report
 LANG_MAP = {
@@ -49,7 +61,7 @@ KNOWN_ISSUE_PATTERNS = [
     ),
     (
         "No module named pytest",
-        "pytest was missing from the venv and the automatic install failed; run "
+        "pytest is missing from the selected Python environment; run "
         "`pip install pytest` inside the venv manually and re-run bxt.",
     ),
 ]
@@ -66,12 +78,9 @@ WARNING_LINE_PATTERNS = [
 ]
 ERROR_LINE_PATTERNS = [
     r"Traceback", r"panicked at", r"Segmentation fault", r"AssertionError",
-    r"^error\[", r"^error:", r"^FAILED", r"^E   ",
+    r"^error\[", r"^error:", r"^FAILED", r"^E\s+", r"Exception:",
+    r"fatal error", r"deadlock",
 ]
-
-# سقف تعداد ردیف‌های هر یک از فهرست‌های هشدار/خطا در گزارش نهایی
-# cap on how many rows each of the warning/error index sections shows
-MAX_ISSUE_ROWS = 40
 
 # یادداشت ثابتی که همیشه در بالای هر گزارش تولیدشده قرار می‌گیرد تا هر ایجنت
 # هوش مصنوعی که این فایل را می‌خواند بداند این گزارش کامل و خودکفاست.
@@ -118,39 +127,7 @@ def human_size(num_bytes: int) -> str:
     return f"{size:.1f} TB"
 
 
-def find_rust_dirs(root: Path):
-    # پیدا کردن هر پوشه‌ای که یک Cargo.toml دارد (کرِیت راست)
-    # find every directory that contains a Cargo.toml (a Rust crate)
-    found = []
-    for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in IGNORE_DIRS]
-        if "Cargo.toml" in filenames:
-            found.append(Path(dirpath))
-    return found
-
-
-def find_python_test_dirs(root: Path):
-    # پیدا کردن هر پوشه‌ای که فایل‌های تست پایتون در آن هست
-    # find every directory that contains python test files
-    found = set()
-    for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in IGNORE_DIRS]
-        if any(f.startswith("test_") and f.endswith(".py") for f in filenames):
-            found.add(Path(dirpath).parent if Path(dirpath).name == "tests" else Path(dirpath))
-    return sorted(found)
-
-
-def find_venv_python(root: Path):
-    # جستجوی مفسر پایتون venv پروژه، وگرنه استفاده از python3 سیستم
-    # look for the project's venv python interpreter, else fall back to system python3
-    candidates = [root / ".venv" / "bin" / "python", Path.home() / "bimarz" / ".venv" / "bin" / "python"]
-    for c in candidates:
-        if c.exists():
-            return str(c)
-    return "python3"
-
-
-def run_cmd(cmd, cwd, env=None, timeout=1800):
+def run_cmd(cmd: list[str], cwd: Path, env: dict[str, str] | None = None, timeout: int = 1800) -> tuple[int, str]:
     # اجرای یک دستور و برگرداندن کد خروجی و متن کامل خروجی
     # run a command and return its return code plus full combined output
     try:
@@ -162,7 +139,7 @@ def run_cmd(cmd, cwd, env=None, timeout=1800):
     except FileNotFoundError:
         return 127, f"command not found: {cmd[0]}"
     except subprocess.TimeoutExpired:
-        return 124, "command timed out after 1800s"
+        return 124, f"command timed out after {timeout}s"
 
 
 def summarize_tail(output: str, max_lines: int = 25) -> str:
@@ -172,7 +149,7 @@ def summarize_tail(output: str, max_lines: int = 25) -> str:
     return "\n".join(lines[-max_lines:]) if lines else "(no output)"
 
 
-def scan_for_issues(source: str, output: str):
+def scan_for_issues(source: str, output: str) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
     # کل خروجی خام (نه فقط چند خط آخر) را برای الگوهای هشدار/خطای شناخته‌شده اسکن می‌کند
     # scans the FULL raw output (not just the tail) for known warning/error patterns
     warnings, errors = [], []
@@ -187,65 +164,130 @@ def scan_for_issues(source: str, output: str):
     return warnings, errors
 
 
-def run_rust_tests(root: Path):
+def find_rust_dirs(root: Path) -> list[Path]:
+    # پیدا کردن هر پوشه‌ای که یک Cargo.toml دارد (کرِیت راست)
+    # find every directory that contains a Cargo.toml (a Rust crate)
+    found = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in IGNORE_DIRS]
+        if "Cargo.toml" in filenames:
+            found.append(Path(dirpath))
+    return found
+
+
+def find_python_test_dirs(root: Path) -> list[Path]:
+    # پیدا کردن هر پوشه‌ای که فایل‌های تست پایتون در آن هست
+    # find every directory that contains python test files
+    found = set()
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in IGNORE_DIRS]
+        if any(f.startswith("test_") and f.endswith(".py") for f in filenames):
+            path = Path(dirpath)
+            found.add(path.parent if path.name == "tests" else path)
+    return sorted(found)
+
+
+def find_venv_python(root: Path) -> str:
+    # جستجوی مفسر پایتون venv پروژه، وگرنه استفاده از python3 سیستم
+    # look for the project's venv python interpreter, else fall back to system python3
+    candidate = root / ".venv" / "bin" / "python"
+    if candidate.exists():
+        return str(candidate)
+    return "python3"
+
+
+def ensure_pytest(py: str, root: Path) -> str | None:
+    # فقط بررسی می‌کند pytest نصب است یا نه — بدون نصب خودکار، تا محیط کاربر بی‌اجازه تغییر نکند
+    # only checks whether pytest is installed — no silent auto-install, so the user's env isn't changed without asking
+    rc, output = run_cmd([py, "-c", "import pytest"], cwd=root, timeout=30)
+    if rc == 0:
+        return None
+    return "pytest unavailable in this environment: " + summarize_tail(output, 5)
+
+
+def run_rust_tests(root: Path) -> list[dict[str, Any]]:
     # اجرای cargo test روی هر کریت راست پیدا شده
     # run cargo test on every discovered Rust crate
     results = []
     for crate_dir in find_rust_dirs(root):
-        rc, out = run_cmd(["cargo", "test"], cwd=crate_dir)
+        rc, output = run_cmd(["cargo", "test"], cwd=crate_dir)
         source = str(crate_dir.relative_to(root)) or "."
-        warnings, errors = scan_for_issues(f"cargo test — {source}", out)
+        warnings, errors = scan_for_issues(f"cargo test — {source}", output)
         results.append({
-            "dir": source,
-            "returncode": rc,
-            "summary": summarize_tail(out),
-            "warnings": warnings,
-            "errors": errors,
+            "kind": "cargo test", "dir": source, "returncode": rc,
+            "summary": summarize_tail(output), "raw_output": output,
+            "warnings": warnings, "errors": errors,
         })
     return results
 
 
-def ensure_pytest(py: str):
-    # اگر pytest در محیط پایتون نصب نبود، خودکار نصبش کن و نتیجه را برگردان
-    # if pytest is missing from the python environment, install it automatically and report the outcome
-    rc, _ = run_cmd([py, "-c", "import pytest"], cwd=Path.home())
-    if rc == 0:
-        return None
-    install_rc, install_out = run_cmd([py, "-m", "pip", "install", "pytest"], cwd=Path.home())
-    if install_rc == 0:
-        return "pytest was missing and has been installed automatically."
-    return f"pytest was missing and the automatic install failed:\n{summarize_tail(install_out, 10)}"
-
-
-def run_python_tests(root: Path):
-    # اجرای pytest روی هر پوشه تست پایتون پیدا شده، با نصب خودکار در صورت نبودن pytest
-    # run pytest on every discovered python test directory, auto-installing pytest if it's missing
+def run_python_tests(root: Path) -> list[dict[str, Any]]:
+    # اجرای pytest روی هر پوشه تست پایتون پیدا شده
+    # run pytest on every discovered python test directory
     results = []
     py = find_venv_python(root)
     env = os.environ.copy()
     env.setdefault("BIMARZ_PROFILE_PASSWORD", "test123")
-    install_note = ensure_pytest(py)
+    pytest_note = ensure_pytest(py, root)
     for test_dir in find_python_test_dirs(root):
-        rc, out = run_cmd([py, "-m", "pytest", "-q"], cwd=test_dir, env=env)
+        rc, output = run_cmd([py, "-m", "pytest", "-q"], cwd=test_dir, env=env)
         source = str(test_dir.relative_to(root)) or "."
-        warnings, errors = scan_for_issues(f"pytest — {source}", out)
+        warnings, errors = scan_for_issues(f"pytest — {source}", output)
         results.append({
-            "dir": source,
-            "returncode": rc,
-            "summary": summarize_tail(out),
-            "install_note": install_note,
-            "warnings": warnings,
-            "errors": errors,
+            "kind": "pytest", "dir": source, "returncode": rc,
+            "summary": summarize_tail(output), "raw_output": output,
+            "pytest_note": pytest_note, "warnings": warnings, "errors": errors,
         })
     return results
 
 
-def collect_git_snapshot(root: Path):
+def run_quality_checks(root: Path) -> list[dict[str, Any]]:
+    # بررسی‌های کیفیت (fmt/clippy/ruff) فقط با فلگ --quality اجرا می‌شوند، نه به‌صورت پیش‌فرض،
+    # چون روی لپ‌تاپ ۲ گیگ رم کند هستند؛ clippy با CARGO_BUILD_JOBS=1 اجرا می‌شود.
+    # Quality checks (fmt/clippy/ruff) only run with --quality, not by default, since
+    # they're slow on the 2GB RAM laptop; clippy runs with CARGO_BUILD_JOBS=1.
+    results = []
+    env = os.environ.copy()
+    env.setdefault("CARGO_BUILD_JOBS", "1")
+
+    for crate_dir in find_rust_dirs(root):
+        source = str(crate_dir.relative_to(root)) or "."
+        for name, cmd in (
+            ("cargo fmt --check", ["cargo", "fmt", "--check"]),
+            ("cargo clippy", ["cargo", "clippy", "--all-targets", "--all-features"]),
+        ):
+            rc, output = run_cmd(cmd, cwd=crate_dir, env=env, timeout=1800)
+            warnings, errors = scan_for_issues(f"{name} — {source}", output)
+            results.append({
+                "kind": name, "dir": source, "returncode": rc,
+                "summary": summarize_tail(output), "raw_output": output,
+                "warnings": warnings, "errors": errors,
+            })
+
+    if shutil.which("ruff"):
+        rc, output = run_cmd(["ruff", "check", "."], cwd=root, timeout=600)
+        warnings, errors = scan_for_issues("ruff check", output)
+        results.append({
+            "kind": "ruff check", "dir": ".", "returncode": rc,
+            "summary": summarize_tail(output), "raw_output": output,
+            "warnings": warnings, "errors": errors,
+        })
+    else:
+        results.append({
+            "kind": "ruff check", "dir": ".", "returncode": 0,
+            "summary": "ruff not installed — skipped.", "raw_output": "",
+            "warnings": [], "errors": [],
+        })
+
+    return results
+
+
+def collect_git_snapshot(root: Path) -> dict[str, str]:
     # وضعیت فعلی Git را می‌خواند: شاخه، کامیت، تغییرات ثبت‌نشده، ۱۰ کامیت آخر
     # reads the current Git state: branch, commit, uncommitted changes, last 10 commits
-    def git(*args):
-        rc, out = run_cmd(["git", *args], cwd=root, timeout=30)
-        return out.strip() if rc == 0 else "(unavailable)"
+    def git(*args: str) -> str:
+        rc, output = run_cmd(["git", *args], cwd=root, timeout=30)
+        return output.strip() if rc == 0 else "(unavailable)"
 
     return {
         "branch": git("branch", "--show-current"),
@@ -255,29 +297,55 @@ def collect_git_snapshot(root: Path):
     }
 
 
+def collect_environment_info() -> dict[str, str]:
+    # نسخه ابزارهای اصلی را برای دیباگ سریع‌تر ثبت می‌کند — سبک، بدون دامپ کامل سیستم
+    # records core toolchain versions for faster debugging — lightweight, not a full system dump
+    def version(cmd: list[str]) -> str:
+        rc, output = run_cmd(cmd, cwd=Path.home(), timeout=15)
+        return output.strip() if rc == 0 else "(unavailable)"
+
+    return {
+        "python": version([sys.executable, "--version"]),
+        "rustc": version(["rustc", "--version"]),
+        "cargo": version(["cargo", "--version"]),
+    }
+
+
 def build_tree(root: Path) -> str:
-    # ساخت نمای درختی پروژه شبیه دستور tree
-    # build a project directory tree similar to the `tree` command
+    # ساخت نمای درختی پروژه شبیه دستور tree، با محدودیت عمق و تعداد ورودی
+    # build a project directory tree similar to the `tree` command, capped in depth and entry count
     lines = [root.name + "/"]
 
-    def walk(dir_path: Path, prefix: str):
-        entries = sorted(
-            [e for e in dir_path.iterdir() if e.name not in IGNORE_DIRS],
-            key=lambda e: (e.is_file(), e.name.lower()),
-        )
+    def walk(dir_path: Path, prefix: str, depth: int) -> None:
+        if depth >= MAX_TREE_DEPTH:
+            return
+        try:
+            entries = sorted(
+                [e for e in dir_path.iterdir() if e.name not in IGNORE_DIRS],
+                key=lambda e: (e.is_file(), e.name.lower()),
+            )
+        except OSError:
+            return
+
+        truncated_count = max(0, len(entries) - MAX_TREE_ENTRIES)
+        entries = entries[:MAX_TREE_ENTRIES]
+
         for i, entry in enumerate(entries):
-            last = i == len(entries) - 1
+            last = i == len(entries) - 1 and truncated_count == 0
             connector = "└── " if last else "├── "
             lines.append(prefix + connector + entry.name + ("/" if entry.is_dir() else ""))
             if entry.is_dir():
                 extension = "    " if last else "│   "
-                walk(entry, prefix + extension)
+                walk(entry, prefix + extension, depth + 1)
 
-    walk(root, "")
+        if truncated_count:
+            lines.append(f"{prefix}└── ... ({truncated_count} more entries hidden)")
+
+    walk(root, "", 0)
     return "\n".join(lines)
 
 
-def collect_essential_files(root: Path):
+def collect_essential_files(root: Path) -> tuple[list[Path], list[tuple[Path, int]]]:
     # جمع‌آوری فایل‌های ضروری برای فهم پروژه، همراه با علت رد شدن فایل‌های حجیم
     # collect the essential files for understanding the project, noting oversized skips
     included, skipped = [], []
@@ -298,7 +366,7 @@ def collect_essential_files(root: Path):
     return sorted(included), sorted(skipped)
 
 
-def render_issue_index(title: str, issues: list) -> list:
+def render_issue_index(title: str, issues: list[tuple[str, str]]) -> list[str]:
     # ساخت یک بخش فهرست‌وار فشرده برای هشدارها یا خطاهای شناسایی‌شده
     # build one compact list-style section for detected warnings or errors
     if not issues:
@@ -312,7 +380,33 @@ def render_issue_index(title: str, issues: list) -> list:
     return parts
 
 
-def render_report(root: Path, rust_results, python_results, git_info, tree_text, included, skipped, tests_skipped: bool) -> str:
+def render_test_output(parts: list[str], result: dict[str, Any]) -> None:
+    # افزودن یک بخش نتیجه‌ی تست/بررسی به گزارش — raw output کامل فقط وقتی نشان داده می‌شود که آن مرحله fail شده باشد
+    # add one test/check result section to the report — full raw output only shown when that step failed
+    status = "PASS" if result["returncode"] == 0 else "FAIL"
+    label = f"{result['kind']} — {result['dir']}" if result.get("dir") else result["kind"]
+    parts.append(f"### {label} [{status}]")
+    if result.get("pytest_note"):
+        parts.append(f"_{result['pytest_note']}_")
+    parts.append("```text")
+    parts.append(result["summary"])
+    parts.append("```")
+    if result["returncode"] != 0 and result.get("raw_output"):
+        parts += ["", "#### Raw output", "```text", result["raw_output"], "```"]
+
+
+def render_report(
+    root: Path,
+    rust_results: list[dict[str, Any]],
+    python_results: list[dict[str, Any]],
+    quality_results: list[dict[str, Any]],
+    git_info: dict[str, str],
+    env_info: dict[str, str],
+    tree_text: str,
+    included: list[Path],
+    skipped: list[tuple[Path, int]],
+    tests_skipped: bool,
+) -> str:
     # ساخت متن نهایی گزارش به صورت یک فایل مارک‌داون واحد
     # assemble the final report as a single markdown document
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -323,6 +417,12 @@ def render_report(root: Path, rust_results, python_results, git_info, tree_text,
         f"Project path: {root}",
         "",
         AI_NOTICE,
+        "## Environment",
+        "",
+        f"- **Python:** {env_info['python']}",
+        f"- **rustc:** {env_info['rustc']}",
+        f"- **cargo:** {env_info['cargo']}",
+        "",
         "## Git",
         "",
         f"- **Branch:** {git_info['branch']}",
@@ -339,32 +439,26 @@ def render_report(root: Path, rust_results, python_results, git_info, tree_text,
         "```",
         "",
         "## Test results",
+        "",
     ]
 
     all_warnings, all_errors = [], []
 
     if tests_skipped:
-        parts.append("Test execution was skipped (--skip-tests).")
+        parts.append("Test execution was skipped by user request (--skip-tests).")
     elif not rust_results and not python_results:
         parts.append("No test suites were discovered under this project path.")
-    for r in rust_results:
-        status = "PASS" if r["returncode"] == 0 else "FAIL"
-        parts.append(f"### cargo test — {r['dir']} [{status}]")
-        parts.append("```")
-        parts.append(r["summary"])
-        parts.append("```")
+    for r in rust_results + python_results:
+        render_test_output(parts, r)
         all_warnings += r["warnings"]
         all_errors += r["errors"]
-    for r in python_results:
-        status = "PASS" if r["returncode"] == 0 else "FAIL"
-        parts.append(f"### pytest — {r['dir']} [{status}]")
-        if r.get("install_note"):
-            parts.append(f"_{r['install_note']}_")
-        parts.append("```")
-        parts.append(r["summary"])
-        parts.append("```")
-        all_warnings += r["warnings"]
-        all_errors += r["errors"]
+
+    if quality_results:
+        parts += ["", "## Quality checks", ""]
+        for r in quality_results:
+            render_test_output(parts, r)
+            all_warnings += r["warnings"]
+            all_errors += r["errors"]
 
     # تشخیص خودکار خطاهای شناخته‌شده (کاذب) در خروجی تست‌ها و افزودن توضیحشان به گزارش
     # automatically detect known (false-positive) error patterns and add their explanation
@@ -407,12 +501,22 @@ def render_report(root: Path, rust_results, python_results, git_info, tree_text,
     return "\n".join(parts)
 
 
-def main():
+def write_sha256(path: Path) -> str:
+    # نوشتن فایل sha256 کنار گزارش برای اطمینان از سالم بودن فایل بعد از انتقال/آپلود
+    # write a companion sha256 file next to the report to verify it survived transfer/upload intact
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    checksum_path = path.with_suffix(path.suffix + ".sha256")
+    checksum_path.write_text(f"{digest}  {path.name}\n", encoding="utf-8")
+    return digest
+
+
+def main() -> None:
     parser = argparse.ArgumentParser(prog="bxt", description="Run bimarz tests and export a full project report for an AI agent.")
     parser.add_argument("--project", default=str(DEFAULT_PROJECT_PATH), help="Path to the bimarz project root")
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR), help="Directory to write the report into")
     parser.add_argument("--output-name", default=DEFAULT_OUTPUT_NAME, help="Report file name")
     parser.add_argument("--skip-tests", action="store_true", help="Skip running cargo/pytest and only export the report")
+    parser.add_argument("--quality", action="store_true", help="Also run cargo fmt/clippy and ruff (slow — off by default)")
     args = parser.parse_args()
 
     root = Path(args.project).expanduser().resolve()
@@ -421,9 +525,7 @@ def main():
         sys.exit(1)
 
     output_dir = Path(args.output_dir).expanduser()
-    if not output_dir.is_dir():
-        print(f"ERROR: output directory does not exist: {output_dir}")
-        sys.exit(1)
+    output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / args.output_name
 
     rust_results, python_results = [], []
@@ -435,8 +537,16 @@ def main():
     else:
         print("Skipping test execution (--skip-tests).")
 
+    quality_results = []
+    if args.quality:
+        print("Running quality checks (--quality)...")
+        quality_results = run_quality_checks(root)
+
     print("Reading Git snapshot...")
     git_info = collect_git_snapshot(root)
+
+    print("Reading environment info...")
+    env_info = collect_environment_info()
 
     print("Building project tree...")
     tree_text = build_tree(root)
@@ -445,7 +555,10 @@ def main():
     included, skipped = collect_essential_files(root)
 
     print("Rendering report...")
-    report_text = render_report(root, rust_results, python_results, git_info, tree_text, included, skipped, args.skip_tests)
+    report_text = render_report(
+        root, rust_results, python_results, quality_results,
+        git_info, env_info, tree_text, included, skipped, args.skip_tests,
+    )
 
     # اگر فایل هم‌نامی از قبل در پوشه دانلود وجود دارد، حذفش کن و گزارش بده
     # if a same-named file already exists in the Download folder, delete it and report that
@@ -455,22 +568,17 @@ def main():
         print(f"Removed existing file: {output_path} ({human_size(old_size)})")
 
     output_path.write_text(report_text, encoding="utf-8")
+    digest = write_sha256(output_path)
     new_size = output_path.stat().st_size
 
-    # نوشتن فایل sha256 کنار گزارش برای اطمینان از سالم بودن فایل بعد از انتقال/آپلود
-    # write a companion sha256 file next to the report to verify it survived transfer/upload intact
-    digest = hashlib.sha256(output_path.read_bytes()).hexdigest()
-    hash_path = output_path.with_suffix(output_path.suffix + ".sha256")
-    hash_path.write_text(f"{digest}  {output_path.name}\n", encoding="utf-8")
-
-    total_warnings = sum(len(r["warnings"]) for r in rust_results + python_results)
-    total_errors = sum(len(r["errors"]) for r in rust_results + python_results)
+    total_warnings = sum(len(r["warnings"]) for r in rust_results + python_results + quality_results)
+    total_errors = sum(len(r["errors"]) for r in rust_results + python_results + quality_results)
+    rust_fail = sum(1 for r in rust_results if r["returncode"] != 0)
+    py_fail = sum(1 for r in python_results if r["returncode"] != 0)
 
     print(f"SUCCESS: report written to {output_path} ({human_size(new_size)})")
     print(f"SHA256: {digest}")
     print(f"Files included: {len(included)} | Files skipped: {len(skipped)}")
-    rust_fail = sum(1 for r in rust_results if r["returncode"] != 0)
-    py_fail = sum(1 for r in python_results if r["returncode"] != 0)
     print(f"Rust suites: {len(rust_results)} run, {rust_fail} failed | Python suites: {len(python_results)} run, {py_fail} failed")
     print(f"Warnings detected: {total_warnings} | Errors detected: {total_errors}")
 
