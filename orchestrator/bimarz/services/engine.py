@@ -30,6 +30,7 @@ class EngineService:
         engine_class = get_engine_client_class()
         engine = await connect_with_retry(
             engine_class,
+            endpoint=self.config.grpc_endpoint,
             max_retries=self.config.engine_retries,
             delay=self.config.engine_retry_delay,
         )

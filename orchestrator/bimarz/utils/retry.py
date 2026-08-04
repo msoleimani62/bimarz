@@ -36,6 +36,7 @@ def is_retryable(exc: Exception) -> bool:
 
 async def connect_with_retry(
     engine_client_class: type,
+    endpoint: str,
     max_retries: int = ENGINE_CONNECT_MAX_RETRIES,
     delay: float = ENGINE_CONNECT_RETRY_DELAY,
 ) -> EngineClient:
@@ -45,7 +46,7 @@ async def connect_with_retry(
     last_exc: Exception | None = None
     for attempt in range(1, max_retries + 1):
         try:
-            return engine_client_class()
+            return await engine_client_class.connect(endpoint)
         except Exception as exc:
             if is_retryable(exc):
                 last_exc = exc

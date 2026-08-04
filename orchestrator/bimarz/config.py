@@ -34,6 +34,10 @@ class AppConfig:
     default_interface: str = "tun0"
     log_level: int = logging.WARNING
 
+    @property
+    def grpc_endpoint(self) -> str:
+        return f"http://{self.grpc_host}:{self.grpc_port}"
+
     @classmethod
     def from_env(cls) -> AppConfig:
         """Build config from environment variables when present.

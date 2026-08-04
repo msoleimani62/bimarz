@@ -21,6 +21,7 @@ from bimarz.engine import EngineNotBuiltError
 from bimarz.failover import FailoverManager, check_all_profiles, check_profile_health
 from bimarz.killswitch_manager import KillSwitchManager, KillSwitchTriggeredError
 from bimarz.models import HealthCheckResult, ServerProfile
+from bimarz.constants import DEFAULT_GRPC_ENDPOINT
 from bimarz.xray_config import ACTIVE_OUTBOUND_TAG, build_connect_config
 from bimarz.xray_manager import BinaryNotFoundError, XrayProcess, find_xray_binary
 
@@ -281,7 +282,7 @@ class ConnectionWorker(QThread):
     ) -> None:
         client_class = get_engine_client_class()
 
-        self._client = await connect_with_retry(client_class)
+        self._client = await connect_with_retry(client_class, DEFAULT_GRPC_ENDPOINT)
 
         if self._client is None:
             raise RuntimeError(
@@ -445,7 +446,6 @@ class ConnectionWorker(QThread):
             return
 
         # Keep FailoverManager in sync with the new active profile
-        manager.active_profile_id = next_id
 
         self.failover_occurred.emit(
             event.from_profile_id or "unknown",
