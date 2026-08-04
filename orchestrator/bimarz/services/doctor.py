@@ -65,7 +65,7 @@ class DoctorService:
         ks = KillSwitchManager()
         report.killswitch_active = ks.state.active
 
-        t = timeout or self.config.doctor_timeout
+        t = self.config.doctor_timeout if timeout is None else timeout
         host = self.config.grpc_host
         port = self.config.grpc_port
         report.grpc_endpoint = f"{host}:{port}"
