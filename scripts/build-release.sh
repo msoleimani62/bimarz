@@ -2,14 +2,16 @@
 set -euo pipefail
 
 # Build-release script for BiMarz engine-core.
-# Checks prerequisites, fetches pinned proto files, builds native wheel,
-# and optionally cross-compiles aarch64 with cargo-zigbuild.
+# Checks prerequisites, fetches pinned proto files, runs clippy,
+# builds native wheel, and optionally cross-compiles aarch64 with cargo-zigbuild.
 #
 # اسکریپت build-release برای engine-core بی‌مرز.
-# پیش‌نیازها را چک می‌کند، proto های پین‌شده را واکشی می‌کند، wheel نیتیو
-# می‌سازد و اختیاراً aarch64 را با cargo-zigbuild کراس-کامپایل می‌کند.
+# پیش‌نیازها را چک می‌کند، proto های پین‌شده را واکشی می‌کند،
+# clippy اجرا می‌کند، wheel نیتیو می‌سازد و اختیاراً aarch64 را
+# با cargo-zigbuild کراس-کامپایل می‌کند.
 
 XRAY_TAG="v1.8.24"
+MIN_MATURIN_VERSION="1.7"
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ENGINE_DIR="${PROJECT_ROOT}/engine-core"
 VENV_DIR="${PROJECT_ROOT}/.venv"
@@ -41,13 +43,35 @@ check_prerequisites() {
     fi
 }
 
+check_maturin_version() {
+    local maturin_version
+    maturin_version=$(python3 -c "import maturin; print(maturin.__version__)" 2>/dev/null || echo "0.0.0")
+    if [ "${maturin_version}" = "0.0.0" ]; then
+        log_warn "maturin not found in Python environment — will install"
+        return 1
+    fi
+    # Simple semver comparison: extract major.minor
+    local current_major current_minor
+    current_major=$(echo "$maturin_version" | cut -d. -f1)
+    current_minor=$(echo "$maturin_version" | cut -d. -f2)
+    local min_major min_minor
+    min_major=$(echo "$MIN_MATURIN_VERSION" | cut -d. -f1)
+    min_minor=$(echo "$MIN_MATURIN_VERSION" | cut -d. -f2)
+
+    if [ "$current_major" -lt "$min_major" ] ||        ([ "$current_major" -eq "$min_major" ] && [ "$current_minor" -lt "$min_minor" ]); then
+        log_warn "maturin ${maturin_version} found, but >= ${MIN_MATURIN_VERSION} required — will upgrade"
+        return 1
+    fi
+    log_info "maturin ${maturin_version} OK (>= ${MIN_MATURIN_VERSION})"
+    return 0
+}
+
 fetch_protos() {
     log_info "Fetching xray-core proto files (tag: ${XRAY_TAG})..."
     if [ -d "/tmp/xray-core-src" ]; then
         rm -rf /tmp/xray-core-src
     fi
-    git clone --depth 1 --branch "${XRAY_TAG}" \
-        https://github.com/XTLS/xray-core.git /tmp/xray-core-src
+    git clone --depth 1 --branch "${XRAY_TAG}"         https://github.com/XTLS/xray-core.git /tmp/xray-core-src
     mkdir -p "${ENGINE_DIR}/proto"
     cp -r /tmp/xray-core-src/app "${ENGINE_DIR}/proto/"
     cp -r /tmp/xray-core-src/common "${ENGINE_DIR}/proto/"
@@ -63,6 +87,16 @@ setup_venv() {
     source "${VENV_DIR}/bin/activate"
     log_info "Installing/Upgrading build dependencies..."
     pip install --upgrade pip maturin
+}
+
+run_clippy() {
+    log_info "Running cargo clippy..."
+    cd "${ENGINE_DIR}"
+    if ! cargo clippy --all-targets -- -D warnings; then
+        log_error "cargo clippy failed — fix warnings before building."
+        exit 1
+    fi
+    log_info "cargo clippy passed."
 }
 
 build_native() {
@@ -114,6 +148,8 @@ main() {
     check_prerequisites
     fetch_protos
     setup_venv
+    check_maturin_version || pip install --upgrade "maturin>=${MIN_MATURIN_VERSION}"
+    run_clippy
     build_native
 
     if [ "${build_aarch64_flag}" = true ]; then
