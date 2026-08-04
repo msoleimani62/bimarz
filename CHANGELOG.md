@@ -5,6 +5,15 @@ This file follows the [Keep a Changelog](https://keepachangelog.com/) format.
 
 ## [Unreleased]
 
+### Added — افزوده شد
+
+- `docs/INSTALL.md`: step-by-step bilingual installation guide for non-technical users.
+
+### Changed — تغییر یافت
+
+- `README.md`: roadmap synced to actual project state (phases 0–5 complete, 6 in progress, 7–8 not started); architecture diagram updated to reflect modular cli.py refactor.
+- `scripts/build-release.sh`: added `cargo clippy` check before build, added maturin version validation.
+
 ## [0.2.0] — 2026-08-03
 
 ### Added — افزوده شد (فاز ۵: تکمیل CLI و بسته‌بندی)
@@ -23,16 +32,38 @@ This file follows the [Keep a Changelog](https://keepachangelog.com/) format.
 - `orchestrator/bimarz/models.py`: `DoctorReport.grpc_reachable: bool` replaced by `grpc_status: GrpcStatus` and `grpc_endpoint: str` for richer diagnostics.
 - `orchestrator/bimarz/cli.py`: `_render_doctor_report` now color-codes and explains each `GrpcStatus` state.
 - `orchestrator/bimarz/constants.py`: version bumped to `0.2.0` (synchronized with `pyproject.toml`).
+- `orchestrator/bimarz/cli.py`: fully modularized — all business logic moved to `commands/` and `services/` modules; cli.py reduced from ~1070 to ~117 lines.
+
+### Fixed — رفع شد
+
+- `orchestrator/bimarz/cli.py`: `_connect_async` now passes the real user UID (`os.getuid()`) to `KillSwitchManager.activate()`, preventing the kill-switch from blocking xray-core's own tunnel traffic.
+- `engine-core/src/killswitch.rs`: `build_killswitch_rules` now returns a clear error when `xray_uid` is `None` instead of generating a dangerous blanket-DROP rule that would break the connection.
+- `orchestrator/bimarz/gui/connection_worker.py`: fixed signature mismatch in `connect_with_retry` call (was passing only 1 arg instead of 3); defaults added to `bimarz.utils.retry.connect_with_retry`.
+
+### Security — امنیت
+
+- Improved kill-switch rule validation to prevent accidental blanket blocking rules.
+- Improved diagnostic handling to make network protection failures visible instead of silently applying unsafe defaults.
 
 ### Architecture decisions — تصمیمات معماری (فاز ۵)
 
 - **PyPI deferred, not rejected:** publishing to PyPI has been postponed until the CI pipeline can reliably produce wheels for every supported platform. GitHub Releases is currently the primary distribution channel because it can publish multiple platform-specific wheels within a single release.
 - **Doctor probe is layered:** a TCP probe is always available with zero external dependencies. A real gRPC probe is executed only when the Rust extension has been built, allowing `bimarz doctor` to remain functional even before `maturin develop` is executed.
 - **Error hints are contextual:** every error category now provides a targeted next-step hint (for example, `source .venv/bin/activate && maturin develop --release` for `EngineNotBuiltError`) instead of only displaying the raw exception.
+- **cli.py modularization:** all sub-command logic extracted to `commands/` (CLI-specific) and `services/` (reusable by GUI) to enforce single-responsibility and prevent the monolithic cli.py anti-pattern.
 
 ## [0.1.0] — 2026-07-20
 
 ### Added — افزوده شد
 
-- (تمام entryهای قبلی فاز ۰ تا ۴ اینجا باقی می‌مانند — حذف نشده‌اند)
+- Initial project skeleton: Python orchestrator + Rust engine-core via PyO3/maturin.
+- gRPC connection skeleton to xray-core with `EngineClient` (Rust) and `PyEngineClient` (Python bridge).
+- `bimarz doctor` command with environment detection and xray-core binary discovery.
+- Platform detection for Arch Linux, Kali NetHunter/Termux, WSL, and generic Linux.
+- CI skeleton with GitHub Actions for Rust tests and Python pytest.
 
+## Version Links
+
+[Unreleased]: https://github.com/msoleimani62/bimarz/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/msoleimani62/bimarz/releases/tag/v0.2.0
+[0.1.0]: https://github.com/msoleimani62/bimarz/releases/tag/v0.1.0
