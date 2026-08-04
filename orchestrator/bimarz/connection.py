@@ -12,7 +12,7 @@ from typing import Any, cast
 
 from bimarz.config import AppConfig
 from bimarz.events import ConnectionEvent, EventHandler, EventPayload
-from bimarz.failover import check_all_profiles, check_profile_health
+from bimarz.failover import check_profile_health
 from bimarz.helpers import profiles_by_id
 from bimarz.models import ServerProfile
 from bimarz.services.engine import EngineService
@@ -104,7 +104,7 @@ class ConnectionService:
 
         proc = self.process_svc.start(profile)
         await self.engine_svc.connect()
-        self.engine_svc.add_outbound(profile)
+        await self.engine_svc.add_outbound(profile)
         self._emit(ConnectionEvent.ENGINE_READY)
 
         if killswitch:
@@ -131,7 +131,7 @@ class ConnectionService:
         profile_map = profiles_by_id(all_profiles)
         active = initial
 
-        while not self._stop_event.is_set() and proc.is_alive():
+        while not self._stop_event.is_set() and proc.is_running():
             if failover.active_id in profile_map:
                 active = profile_map[failover.active_id]
 
@@ -139,22 +139,16 @@ class ConnectionService:
             failover.record(health)
 
             if failover.should_trigger():
-                all_results = await check_all_profiles(all_profiles)
-                best_id = failover.pick_best(all_results)
-                if best_id is None:
+                best = failover.pick_best(list(profile_map.values()))
+                if best is None:
                     logger.error("No alternative profile available")
                     break
 
-                best = profile_map.get(best_id)
-                if best is None:
-                    logger.error("Best profile %s not found in profile map", best_id)
-                    break
-
-                self.engine_svc.remove_outbound()
-                self.engine_svc.add_outbound(best)
-                failover.trigger(best_id)
+                await self.engine_svc.remove_outbound()
+                await self.engine_svc.add_outbound(best)
+                failover.trigger(best.profile_id)
                 active = best
-                self._emit(ConnectionEvent.FAILOVER_TRIGGERED, new_profile_id=best_id)
+                self._emit(ConnectionEvent.FAILOVER_TRIGGERED, new_profile_id=best.profile_id)
 
             if self.ks_svc.is_active() and not self.ks_svc.is_watcher_alive():
                 self._emit(ConnectionEvent.KILLSWITCH_WATCHER_DIED)
@@ -173,7 +167,7 @@ class ConnectionService:
         """Simple watch loop without failover.
         حلقه نظارت ساده بدون failover.
         """
-        while not self._stop_event.is_set() and proc.is_alive():
+        while not self._stop_event.is_set() and proc.is_running():
             if self.ks_svc.is_active() and not self.ks_svc.is_watcher_alive():
                 self._emit(ConnectionEvent.KILLSWITCH_WATCHER_DIED)
                 break

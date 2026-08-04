@@ -37,22 +37,22 @@ class EngineService:
         self._engine = engine
         return engine
 
-    def add_outbound(self, profile: ServerProfile) -> None:
+    async def add_outbound(self, profile: ServerProfile) -> None:
         """Add VLESS Reality outbound for the given profile.
         outbound از نوع VLESS Reality را برای پروفایل اضافه می‌کند.
         """
         if self._engine is None:
             raise RuntimeError("Engine not connected")
-        self._engine.add_vless_reality_outbound(**outbound_kwargs(profile))
+        await self._engine.add_vless_reality_outbound(**outbound_kwargs(profile))
 
-    def remove_outbound(self, tag: str = ACTIVE_OUTBOUND_TAG) -> None:
+    async def remove_outbound(self, tag: str = ACTIVE_OUTBOUND_TAG) -> None:
         """Remove outbound by tag (best-effort).
         outbound را بر اساس تگ حذف می‌کند (بهترین تلاش).
         """
         if self._engine is None:
             return
         try:
-            self._engine.remove_outbound(tag)
+            await self._engine.remove_outbound(tag)
         except Exception as exc:
             logger.warning("remove_outbound failed: %s", exc)
 
