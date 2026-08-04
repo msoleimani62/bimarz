@@ -103,7 +103,7 @@ class ConnectionService:
 
         proc = self.process_svc.start(profile)
         await self.engine_svc.connect()
-        self.engine_svc.add_outbound(profile)
+        await self.engine_svc.add_outbound(profile)
         self._emit(ConnectionEvent.ENGINE_READY)
 
         if killswitch:
@@ -143,8 +143,8 @@ class ConnectionService:
                     logger.error("No alternative profile available")
                     break
 
-                self.engine_svc.remove_outbound()
-                self.engine_svc.add_outbound(best)
+                await self.engine_svc.remove_outbound()
+                await self.engine_svc.add_outbound(best)
                 failover.trigger(best.profile_id)
                 active = best
                 self._emit(ConnectionEvent.FAILOVER_TRIGGERED, new_profile_id=best.profile_id)
