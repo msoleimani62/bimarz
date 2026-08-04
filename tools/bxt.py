@@ -3,7 +3,9 @@
 # bxt tool: run the bimarz project's tests and build one complete report an AI agent can fully understand
 
 import argparse
+import hashlib
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -52,6 +54,25 @@ KNOWN_ISSUE_PATTERNS = [
     ),
 ]
 
+# الگوهای هشدار/خطا که در کل خروجی خام تست‌ها (نه فقط چند خط آخر) اسکن می‌شوند
+# تا مشکلات واقعی مثل «coroutine was never awaited» خودکار شناسایی شوند.
+# Warning/error patterns scanned across the FULL raw test output (not just the
+# truncated tail) so real bugs like "coroutine was never awaited" surface
+# automatically instead of relying on someone reading the whole log by hand.
+WARNING_LINE_PATTERNS = [
+    r"RuntimeWarning", r"DeprecationWarning", r"FutureWarning",
+    r"UserWarning", r"PendingDeprecationWarning", r"\bWARN\b",
+    r"never awaited",
+]
+ERROR_LINE_PATTERNS = [
+    r"Traceback", r"panicked at", r"Segmentation fault", r"AssertionError",
+    r"^error\[", r"^error:", r"^FAILED", r"^E   ",
+]
+
+# سقف تعداد ردیف‌های هر یک از فهرست‌های هشدار/خطا در گزارش نهایی
+# cap on how many rows each of the warning/error index sections shows
+MAX_ISSUE_ROWS = 40
+
 # یادداشت ثابتی که همیشه در بالای هر گزارش تولیدشده قرار می‌گیرد تا هر ایجنت
 # هوش مصنوعی که این فایل را می‌خواند بداند این گزارش کامل و خودکفاست.
 # A fixed notice always placed at the top of every generated report so any AI
@@ -60,24 +81,25 @@ AI_NOTICE = (
     "## توجه به ایجنت هوش مصنوعی — Notice to AI Agent\n"
     "\n"
     "این فایل شامل **همه‌چیز** لازم برای شناخت این پروژه است: نتایج کامل تست‌ها،\n"
-    "ساختار درختی کامل پروژه، و محتوای کامل تمام فایل‌های ضروری سورس (پایتون،\n"
-    "Rust، proto، پیکربندی، اسکریپت‌ها، مستندات). قبل از هر تحلیل، پیشنهاد یا\n"
-    "پچی، این فایل باید **از ابتدا تا انتها** خوانده شود — نه فقط بخش‌هایی که با\n"
-    "جست‌وجوی مسیر یک فایل خاص پیدا می‌شوند؛ باگ‌ها و ناسازگاری‌های واقعی معمولاً\n"
-    "بین چند فایل پخش‌اند و فقط با خواندن کامل قابل کشف‌اند. هیچ فایل دیگری از\n"
-    "پروژه لازم نیست درخواست شود مگر این‌که در همین گزارش موجود نباشد — به بخش\n"
-    "«Essential files» و فهرست «Skipped» (فایل‌های حذف‌شده به‌دلیل حجم) مراجعه کن.\n"
+    "وضعیت Git، ساختار درختی کامل پروژه، و محتوای کامل تمام فایل‌های ضروری سورس\n"
+    "(پایتون، Rust، proto، پیکربندی، اسکریپت‌ها، مستندات). قبل از هر تحلیل،\n"
+    "پیشنهاد یا پچی، این فایل باید **از ابتدا تا انتها** خوانده شود — نه فقط\n"
+    "بخش‌هایی که با جست‌وجوی مسیر یک فایل خاص پیدا می‌شوند؛ باگ‌ها و ناسازگاری‌های\n"
+    "واقعی معمولاً بین چند فایل پخش‌اند و فقط با خواندن کامل قابل کشف‌اند. هیچ\n"
+    "فایل دیگری از پروژه لازم نیست درخواست شود مگر این‌که در همین گزارش موجود\n"
+    "نباشد — به بخش «Essential files» و فهرست «Skipped» (فایل‌های حذف‌شده به‌دلیل\n"
+    "حجم) مراجعه کن.\n"
     "\n"
     "This file contains **everything** needed to understand this project: full\n"
-    "test results, the complete project directory tree, and the full content of\n"
-    "every essential source file (Python, Rust, proto, configs, scripts, docs).\n"
-    "Before any analysis, suggestion, or patch, this file must be read **start\n"
-    "to finish** — not just the sections found by grepping for one known file\n"
-    "path; real bugs and cross-file mismatches are usually spread across several\n"
-    "files and only surface on a full read. No other project file should be\n"
-    "requested unless it is missing from this report — check the \"Essential\n"
-    "files\" section and its \"Skipped\" list (files omitted for exceeding the\n"
-    "size cap).\n"
+    "test results, Git status, the complete project directory tree, and the full\n"
+    "content of every essential source file (Python, Rust, proto, configs,\n"
+    "scripts, docs). Before any analysis, suggestion, or patch, this file must\n"
+    "be read **start to finish** — not just the sections found by grepping for\n"
+    "one known file path; real bugs and cross-file mismatches are usually spread\n"
+    "across several files and only surface on a full read. No other project file\n"
+    "should be requested unless it is missing from this report — check the\n"
+    "\"Essential files\" section and its \"Skipped\" list (files omitted for\n"
+    "exceeding the size cap).\n"
 )
 
 DEFAULT_PROJECT_PATH = Path.home() / "bimarz"
@@ -128,13 +150,13 @@ def find_venv_python(root: Path):
     return "python3"
 
 
-def run_cmd(cmd, cwd, env=None):
+def run_cmd(cmd, cwd, env=None, timeout=1800):
     # اجرای یک دستور و برگرداندن کد خروجی و متن کامل خروجی
     # run a command and return its return code plus full combined output
     try:
         result = subprocess.run(
             cmd, cwd=str(cwd), env=env, capture_output=True,
-            text=True, timeout=1800,
+            text=True, timeout=timeout,
         )
         return result.returncode, (result.stdout + result.stderr)
     except FileNotFoundError:
@@ -150,16 +172,35 @@ def summarize_tail(output: str, max_lines: int = 25) -> str:
     return "\n".join(lines[-max_lines:]) if lines else "(no output)"
 
 
+def scan_for_issues(source: str, output: str):
+    # کل خروجی خام (نه فقط چند خط آخر) را برای الگوهای هشدار/خطای شناخته‌شده اسکن می‌کند
+    # scans the FULL raw output (not just the tail) for known warning/error patterns
+    warnings, errors = [], []
+    for line in output.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if any(re.search(p, stripped) for p in WARNING_LINE_PATTERNS):
+            warnings.append((source, stripped))
+        if any(re.search(p, stripped) for p in ERROR_LINE_PATTERNS):
+            errors.append((source, stripped))
+    return warnings, errors
+
+
 def run_rust_tests(root: Path):
     # اجرای cargo test روی هر کریت راست پیدا شده
     # run cargo test on every discovered Rust crate
     results = []
     for crate_dir in find_rust_dirs(root):
         rc, out = run_cmd(["cargo", "test"], cwd=crate_dir)
+        source = str(crate_dir.relative_to(root)) or "."
+        warnings, errors = scan_for_issues(f"cargo test — {source}", out)
         results.append({
-            "dir": str(crate_dir.relative_to(root)) or ".",
+            "dir": source,
             "returncode": rc,
             "summary": summarize_tail(out),
+            "warnings": warnings,
+            "errors": errors,
         })
     return results
 
@@ -186,13 +227,32 @@ def run_python_tests(root: Path):
     install_note = ensure_pytest(py)
     for test_dir in find_python_test_dirs(root):
         rc, out = run_cmd([py, "-m", "pytest", "-q"], cwd=test_dir, env=env)
+        source = str(test_dir.relative_to(root)) or "."
+        warnings, errors = scan_for_issues(f"pytest — {source}", out)
         results.append({
-            "dir": str(test_dir.relative_to(root)) or ".",
+            "dir": source,
             "returncode": rc,
             "summary": summarize_tail(out),
             "install_note": install_note,
+            "warnings": warnings,
+            "errors": errors,
         })
     return results
+
+
+def collect_git_snapshot(root: Path):
+    # وضعیت فعلی Git را می‌خواند: شاخه، کامیت، تغییرات ثبت‌نشده، ۱۰ کامیت آخر
+    # reads the current Git state: branch, commit, uncommitted changes, last 10 commits
+    def git(*args):
+        rc, out = run_cmd(["git", *args], cwd=root, timeout=30)
+        return out.strip() if rc == 0 else "(unavailable)"
+
+    return {
+        "branch": git("branch", "--show-current"),
+        "commit": git("rev-parse", "--short", "HEAD"),
+        "status": git("status", "--short"),
+        "log": git("log", "--oneline", "-10"),
+    }
 
 
 def build_tree(root: Path) -> str:
@@ -238,7 +298,21 @@ def collect_essential_files(root: Path):
     return sorted(included), sorted(skipped)
 
 
-def render_report(root: Path, rust_results, python_results, tree_text, included, skipped, tests_skipped: bool) -> str:
+def render_issue_index(title: str, issues: list) -> list:
+    # ساخت یک بخش فهرست‌وار فشرده برای هشدارها یا خطاهای شناسایی‌شده
+    # build one compact list-style section for detected warnings or errors
+    if not issues:
+        return [f"## {title}", "", "None detected.", ""]
+    parts = [f"## {title}", ""]
+    for source, line in issues[:MAX_ISSUE_ROWS]:
+        parts.append(f"- **{source}**: `{line}`")
+    if len(issues) > MAX_ISSUE_ROWS:
+        parts.append(f"- ... ({len(issues) - MAX_ISSUE_ROWS} more, see full test output above)")
+    parts.append("")
+    return parts
+
+
+def render_report(root: Path, rust_results, python_results, git_info, tree_text, included, skipped, tests_skipped: bool) -> str:
     # ساخت متن نهایی گزارش به صورت یک فایل مارک‌داون واحد
     # assemble the final report as a single markdown document
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -249,8 +323,25 @@ def render_report(root: Path, rust_results, python_results, tree_text, included,
         f"Project path: {root}",
         "",
         AI_NOTICE,
+        "## Git",
+        "",
+        f"- **Branch:** {git_info['branch']}",
+        f"- **Commit:** {git_info['commit']}",
+        "",
+        "**Uncommitted changes (`git status --short`):**",
+        "```",
+        git_info["status"] or "(clean — nothing to commit)",
+        "```",
+        "",
+        "**Last 10 commits:**",
+        "```",
+        git_info["log"],
+        "```",
+        "",
         "## Test results",
     ]
+
+    all_warnings, all_errors = [], []
 
     if tests_skipped:
         parts.append("Test execution was skipped (--skip-tests).")
@@ -262,6 +353,8 @@ def render_report(root: Path, rust_results, python_results, tree_text, included,
         parts.append("```")
         parts.append(r["summary"])
         parts.append("```")
+        all_warnings += r["warnings"]
+        all_errors += r["errors"]
     for r in python_results:
         status = "PASS" if r["returncode"] == 0 else "FAIL"
         parts.append(f"### pytest — {r['dir']} [{status}]")
@@ -270,16 +363,25 @@ def render_report(root: Path, rust_results, python_results, tree_text, included,
         parts.append("```")
         parts.append(r["summary"])
         parts.append("```")
+        all_warnings += r["warnings"]
+        all_errors += r["errors"]
 
-    # تشخیص خودکار خطاهای شناخته‌شده در خروجی تست‌ها و افزودن توضیحشان به گزارش
-    # automatically detect known error patterns in the test output and add their explanation
+    # تشخیص خودکار خطاهای شناخته‌شده (کاذب) در خروجی تست‌ها و افزودن توضیحشان به گزارش
+    # automatically detect known (false-positive) error patterns and add their explanation
     combined_output = "\n".join(r["summary"] for r in rust_results + python_results)
     known_issues = [note for pattern, note in KNOWN_ISSUE_PATTERNS if pattern in combined_output]
     if known_issues:
         parts += ["", "## Known issues"]
         parts += [f"- {note}" for note in known_issues]
+        parts.append("")
 
-    parts += ["", "## Project tree", "```", tree_text, "```", ""]
+    # فهرست فشرده‌ی هشدارها/خطاهای واقعی که از کل خروجی خام (نه فقط چند خط آخر) استخراج شده‌اند
+    # compact index of real warnings/errors extracted from the full raw output (not just the tail)
+    parts.append("")
+    parts += render_issue_index("Warnings detected", all_warnings)
+    parts += render_issue_index("Errors detected", all_errors)
+
+    parts += ["## Project tree", "```", tree_text, "```", ""]
 
     parts.append("## Essential files")
     parts.append(f"{len(included)} files included, {len(skipped)} skipped for exceeding {human_size(MAX_FILE_SIZE)}.")
@@ -333,6 +435,9 @@ def main():
     else:
         print("Skipping test execution (--skip-tests).")
 
+    print("Reading Git snapshot...")
+    git_info = collect_git_snapshot(root)
+
     print("Building project tree...")
     tree_text = build_tree(root)
 
@@ -340,7 +445,7 @@ def main():
     included, skipped = collect_essential_files(root)
 
     print("Rendering report...")
-    report_text = render_report(root, rust_results, python_results, tree_text, included, skipped, args.skip_tests)
+    report_text = render_report(root, rust_results, python_results, git_info, tree_text, included, skipped, args.skip_tests)
 
     # اگر فایل هم‌نامی از قبل در پوشه دانلود وجود دارد، حذفش کن و گزارش بده
     # if a same-named file already exists in the Download folder, delete it and report that
@@ -352,11 +457,22 @@ def main():
     output_path.write_text(report_text, encoding="utf-8")
     new_size = output_path.stat().st_size
 
+    # نوشتن فایل sha256 کنار گزارش برای اطمینان از سالم بودن فایل بعد از انتقال/آپلود
+    # write a companion sha256 file next to the report to verify it survived transfer/upload intact
+    digest = hashlib.sha256(output_path.read_bytes()).hexdigest()
+    hash_path = output_path.with_suffix(output_path.suffix + ".sha256")
+    hash_path.write_text(f"{digest}  {output_path.name}\n", encoding="utf-8")
+
+    total_warnings = sum(len(r["warnings"]) for r in rust_results + python_results)
+    total_errors = sum(len(r["errors"]) for r in rust_results + python_results)
+
     print(f"SUCCESS: report written to {output_path} ({human_size(new_size)})")
+    print(f"SHA256: {digest}")
     print(f"Files included: {len(included)} | Files skipped: {len(skipped)}")
     rust_fail = sum(1 for r in rust_results if r["returncode"] != 0)
     py_fail = sum(1 for r in python_results if r["returncode"] != 0)
     print(f"Rust suites: {len(rust_results)} run, {rust_fail} failed | Python suites: {len(python_results)} run, {py_fail} failed")
+    print(f"Warnings detected: {total_warnings} | Errors detected: {total_errors}")
 
 
 if __name__ == "__main__":
