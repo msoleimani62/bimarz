@@ -22,10 +22,8 @@ class FailoverService:
     def pick_best(self, all_results: dict[str, HealthCheckResult]) -> str | None:
         return self.manager.pick_best_alternative(all_results)
 
-    def trigger(self, profile_id: str) -> None:
-        self.manager.trigger_failover(
-            profile_id, reason=f"{self.manager.threshold} consecutive failures"
-        )
+    def trigger(self, profile_id: str, reason: str = "failover triggered") -> None:
+        self.manager.trigger_failover(profile_id, reason)
 
     @property
     def active_id(self) -> str:

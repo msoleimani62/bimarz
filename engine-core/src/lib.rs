@@ -12,6 +12,7 @@ mod killswitch;
 mod dns_guard;
 
 mod pb {
+    #![allow(dead_code)]
     include!(concat!(env!("OUT_DIR"), "/pb_tree.rs"));
 }
 
