@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-# ابزار bxt: اجرای تست‌های پروژه بی‌مرز و ساخت یک گزارش کامل قابل فهم برای ایجنت هوش مصنوعی
-# bxt tool: run the bimarz project's tests and build one complete report an AI agent can fully understand
+
+# فارسی: نقطه ورود ابزار bxt
+# English: Entry point for the bxt tool
 
 from __future__ import annotations
 
 import argparse
 import hashlib
 import os
-import re
 import shutil
 import socket
 import subprocess
@@ -16,383 +16,634 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-# پوشه‌ها و پسوندهایی که هرگز نباید وارد گزارش شوند
-# directories and extensions that must never be included in the report
-IGNORE_DIRS = {
-    ".git", "target", "__pycache__", ".venv", "venv", "node_modules",
-    "dist", "build", ".pytest_cache", ".mypy_cache", ".cargo", "egg-info",
-}
-
-# پسوند فایل‌هایی که برای فهم پروژه توسط ایجنت ضروری هستند
-# file extensions considered essential for an AI agent to understand the project
-ESSENTIAL_EXTENSIONS = {
-    ".py", ".rs", ".toml", ".md", ".proto", ".cfg", ".ini",
-    ".yaml", ".yml", ".sh", ".txt",
-}
-
-# سقف حجم هر فایل برای اینکه گزارش بیش از حد بزرگ نشود
-# per-file size cap so the report doesn't balloon in size
-MAX_FILE_SIZE = 200 * 1024  # 200 KB
-
-# محدودیت عمق و تعداد ورودی درخت پروژه تا در پوشه‌های بسیار بزرگ منفجر نشود
-# depth/entry caps on the project tree so it doesn't explode in very large directories
-MAX_TREE_DEPTH = 8
-MAX_TREE_ENTRIES = 250
-
-# سقف تعداد ردیف‌های هر یک از فهرست‌های هشدار/خطا در گزارش نهایی
-# cap on how many rows each of the warning/error index sections shows
-MAX_ISSUE_ROWS = 40
-
-# نگاشت پسوند به زبان برای بلوک‌های کد در گزارش
-# extension-to-language mapping for fenced code blocks in the report
-LANG_MAP = {
-    ".py": "python", ".rs": "rust", ".toml": "toml", ".md": "markdown",
-    ".proto": "protobuf", ".cfg": "ini", ".ini": "ini", ".yaml": "yaml",
-    ".yml": "yaml", ".sh": "bash", ".txt": "text",
-}
-
-# الگوهای خطای شناخته‌شده و توضیح ثابت هر کدام برای بخش Known issues گزارش
-# known error patterns and their fixed explanation for the report's Known issues section
-KNOWN_ISSUE_PATTERNS = [
-    (
-        "Failed to initialize nft: Permission denied",
-        "iptables/nft init failure during cargo test is expected — it comes from "
-        "kill-switch tests that need root/nft access, not a code failure.",
-    ),
-    (
-        "No module named pytest",
-        "pytest is missing from the selected Python environment; run "
-        "`pip install pytest` inside the venv manually and re-run bxt.",
-    ),
-]
-
-# الگوهای هشدار/خطا که در کل خروجی خام تست‌ها (نه فقط چند خط آخر) اسکن می‌شوند
-# تا مشکلات واقعی مثل «coroutine was never awaited» خودکار شناسایی شوند.
-# Warning/error patterns scanned across the FULL raw test output (not just the
-# truncated tail) so real bugs like "coroutine was never awaited" surface
-# automatically instead of relying on someone reading the whole log by hand.
-WARNING_LINE_PATTERNS = [
-    r"RuntimeWarning", r"DeprecationWarning", r"FutureWarning",
-    r"UserWarning", r"PendingDeprecationWarning", r"\bWARN\b",
-    r"never awaited",
-]
-ERROR_LINE_PATTERNS = [
-    r"Traceback", r"panicked at", r"Segmentation fault", r"AssertionError",
-    r"^error\[", r"^error:", r"^FAILED", r"^E\s+", r"Exception:",
-    r"fatal error", r"deadlock",
-]
-
-# یادداشت ثابتی که همیشه در بالای هر گزارش تولیدشده قرار می‌گیرد تا هر ایجنت
-# هوش مصنوعی که این فایل را می‌خواند بداند این گزارش کامل و خودکفاست.
-# A fixed notice always placed at the top of every generated report so any AI
-# agent reading this file knows the report is complete and self-sufficient.
-AI_NOTICE = (
-    "## توجه به ایجنت هوش مصنوعی — Notice to AI Agent\n"
-    "\n"
-    "این فایل شامل **همه‌چیز** لازم برای شناخت این پروژه است: نتایج کامل تست‌ها،\n"
-    "وضعیت Git، ساختار درختی کامل پروژه، و محتوای کامل تمام فایل‌های ضروری سورس\n"
-    "(پایتون، Rust، proto، پیکربندی، اسکریپت‌ها، مستندات). قبل از هر تحلیل،\n"
-    "پیشنهاد یا پچی، این فایل باید **از ابتدا تا انتها** خوانده شود — نه فقط\n"
-    "بخش‌هایی که با جست‌وجوی مسیر یک فایل خاص پیدا می‌شوند؛ باگ‌ها و ناسازگاری‌های\n"
-    "واقعی معمولاً بین چند فایل پخش‌اند و فقط با خواندن کامل قابل کشف‌اند. هیچ\n"
-    "فایل دیگری از پروژه لازم نیست درخواست شود مگر این‌که در همین گزارش موجود\n"
-    "نباشد — به بخش «Essential files» و فهرست «Skipped» (فایل‌های حذف‌شده به‌دلیل\n"
-    "حجم) مراجعه کن.\n"
-    "\n"
-    "This file contains **everything** needed to understand this project: full\n"
-    "test results, Git status, the complete project directory tree, and the full\n"
-    "content of every essential source file (Python, Rust, proto, configs,\n"
-    "scripts, docs). Before any analysis, suggestion, or patch, this file must\n"
-    "be read **start to finish** — not just the sections found by grepping for\n"
-    "one known file path; real bugs and cross-file mismatches are usually spread\n"
-    "across several files and only surface on a full read. No other project file\n"
-    "should be requested unless it is missing from this report — check the\n"
-    "\"Essential files\" section and its \"Skipped\" list (files omitted for\n"
-    "exceeding the size cap).\n"
-)
-
 DEFAULT_PROJECT_PATH = Path.home() / "bimarz"
 DEFAULT_OUTPUT_DIR = Path("/sdcard/Download")
 DEFAULT_OUTPUT_NAME = "bxt-report.md"
 
+MAX_TREE_DEPTH = 8
+MAX_TREE_ENTRIES = 100
+MAX_FILE_SIZE = 2 * 1024 * 1024
+MAX_ISSUE_ROWS = 500
 
-def human_size(num_bytes: int) -> str:
-    # تبدیل بایت به واحد خوانا برای انسان
-    # convert a raw byte count into a human-readable unit
-    size = float(num_bytes)
-    for unit in ("B", "KB", "MB", "GB"):
-        if size < 1024:
-            return f"{size:.1f} {unit}"
-        size /= 1024
-    return f"{size:.1f} TB"
+IGNORE_DIRS = {
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".cache",
+    "target",
+    "build",
+    "dist",
+    "node_modules",
+}
+
+ESSENTIAL_EXTENSIONS = {
+    ".py",
+    ".rs",
+    ".toml",
+    ".json",
+    ".yaml",
+    ".yml",
+    ".md",
+    ".txt",
+    ".lock",
+    ".sh",
+    ".bash",
+    ".zsh",
+    ".ini",
+    ".cfg",
+    ".conf",
+    ".proto",
+}
+
+LANG_MAP = {
+    ".py": "python",
+    ".rs": "rust",
+    ".toml": "toml",
+    ".json": "json",
+    ".yaml": "yaml",
+    ".yml": "yaml",
+    ".md": "markdown",
+    ".sh": "bash",
+    ".bash": "bash",
+    ".zsh": "bash",
+    ".proto": "protobuf",
+}
+
+AI_NOTICE = "This report is generated for AI analysis and contains project metadata, test results and source files."
+
+KNOWN_ISSUE_PATTERNS = [
+    (
+        "Failed to parse",
+        "One or more source files contain syntax errors.",
+    ),
+    (
+        "ModuleNotFoundError",
+        "A required Python dependency is missing.",
+    ),
+    (
+        "error:",
+        "Compilation or lint errors were detected.",
+    ),
+]
 
 
-def run_cmd(cmd: list[str], cwd: Path, env: dict[str, str] | None = None, timeout: int = 1800) -> tuple[int, str]:
-    # اجرای یک دستور و برگرداندن کد خروجی و متن کامل خروجی
-    # run a command and return its return code plus full combined output
+def human_size(size: int) -> str:
+    # فارسی: تبدیل اندازه فایل به رشته خوانا
+    # English: Convert bytes to human readable string
+
+    units = ["B", "KiB", "MiB", "GiB"]
+
+    value = float(size)
+
+    for unit in units:
+        if value < 1024 or unit == units[-1]:
+            return f"{value:.1f} {unit}"
+        value /= 1024
+
+    return f"{size} B"
+
+
+def parse_args() -> argparse.Namespace:
+    # فارسی: پردازش آرگومان‌های خط فرمان
+    # English: Parse command line arguments
+
+    parser = argparse.ArgumentParser(
+        prog="bxt",
+        description="Generate a complete AI-ready project report.",
+    )
+
+    parser.add_argument(
+        "--project",
+        default=str(DEFAULT_PROJECT_PATH),
+        help="Project root directory",
+    )
+
+    parser.add_argument(
+        "--output-dir",
+        default=str(DEFAULT_OUTPUT_DIR),
+        help="Output directory",
+    )
+
+    parser.add_argument(
+        "--output-name",
+        default=DEFAULT_OUTPUT_NAME,
+        help="Output markdown file",
+    )
+
+    parser.add_argument(
+        "--skip-tests",
+        action="store_true",
+        help="Skip running tests",
+    )
+
+    parser.add_argument(
+        "--quality",
+        action="store_true",
+        help="Run quality checks",
+    )
+
+    return parser.parse_args()
+
+
+WARNING_PATTERNS = (
+    "warning:",
+    "warning[",
+    "deprecated",
+    "unused",
+)
+
+ERROR_PATTERNS = (
+    "error:",
+    "failed",
+    "traceback",
+    "panic",
+    "exception",
+)
+
+
+def run_cmd(
+    cmd: list[str],
+    cwd: Path,
+    timeout: int = 300,
+) -> tuple[int, str]:
+    # فارسی: اجرای یک دستور و دریافت خروجی
+    # English: Execute a command and capture its output
+
     try:
-        result = subprocess.run(
-            cmd, cwd=str(cwd), env=env, capture_output=True,
-            text=True, timeout=timeout,
+        completed = subprocess.run(
+            cmd,
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=timeout,
+            check=False,
         )
-        return result.returncode, (result.stdout + result.stderr)
-    except FileNotFoundError:
-        return 127, f"command not found: {cmd[0]}"
     except subprocess.TimeoutExpired:
-        return 124, f"command timed out after {timeout}s"
+        return 124, "Command timed out."
+    except FileNotFoundError:
+        return 127, f"Command not found: {cmd[0]}"
+
+    return completed.returncode, completed.stdout
 
 
-def summarize_tail(output: str, max_lines: int = 25) -> str:
-    # نگه‌داشتن فقط چند خط آخر خروجی برای خلاصه شدن گزارش
-    # keep only the last few lines of output to keep the report short
-    lines = output.strip().splitlines()
-    return "\n".join(lines[-max_lines:]) if lines else "(no output)"
+def summarize_tail(
+    output: str,
+    lines: int = 80,
+) -> str:
+    # فارسی: خلاصه خروجی
+    # English: Return the last output lines
+
+    data = output.strip().splitlines()
+
+    if len(data) <= lines:
+        return output.strip()
+
+    return "\n".join(data[-lines:])
 
 
-def scan_for_issues(source: str, output: str) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
-    # کل خروجی خام (نه فقط چند خط آخر) را برای الگوهای هشدار/خطای شناخته‌شده اسکن می‌کند
-    # scans the FULL raw output (not just the tail) for known warning/error patterns
-    warnings, errors = [], []
+def scan_for_issues(
+    source: str,
+    output: str,
+) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
+    # فارسی: استخراج هشدارها و خطاها
+    # English: Extract warnings and errors
+
+    warnings: list[tuple[str, str]] = []
+    errors: list[tuple[str, str]] = []
+
     for line in output.splitlines():
-        stripped = line.strip()
-        if not stripped:
-            continue
-        if any(re.search(p, stripped) for p in WARNING_LINE_PATTERNS):
-            warnings.append((source, stripped))
-        if any(re.search(p, stripped) for p in ERROR_LINE_PATTERNS):
-            errors.append((source, stripped))
+        lower = line.lower()
+
+        if any(pattern in lower for pattern in WARNING_PATTERNS):
+            warnings.append((source, line.strip()))
+
+        if any(pattern in lower for pattern in ERROR_PATTERNS):
+            errors.append((source, line.strip()))
+
     return warnings, errors
 
 
-def find_rust_dirs(root: Path) -> list[Path]:
-    # پیدا کردن هر پوشه‌ای که یک Cargo.toml دارد (کرِیت راست)
-    # find every directory that contains a Cargo.toml (a Rust crate)
-    found = []
-    for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in IGNORE_DIRS]
-        if "Cargo.toml" in filenames:
-            found.append(Path(dirpath))
-    return found
+def git(
+    root: Path,
+    *args: str,
+) -> str:
+    # فارسی: اجرای دستورات Git
+    # English: Execute Git commands
 
+    rc, output = run_cmd(
+        ["git", *args],
+        cwd=root,
+        timeout=60,
+    )
 
-def find_python_test_dirs(root: Path) -> list[Path]:
-    # پیدا کردن هر پوشه‌ای که فایل‌های تست پایتون در آن هست
-    # find every directory that contains python test files
-    found = set()
-    for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in IGNORE_DIRS]
-        if any(f.startswith("test_") and f.endswith(".py") for f in filenames):
-            path = Path(dirpath)
-            found.add(path.parent if path.name == "tests" else path)
-    return sorted(found)
-
-
-def find_venv_python(root: Path) -> str:
-    # جستجوی مفسر پایتون venv پروژه، وگرنه استفاده از python3 سیستم
-    # look for the project's venv python interpreter, else fall back to system python3
-    candidate = root / ".venv" / "bin" / "python"
-    if candidate.exists():
-        return str(candidate)
-    return "python3"
-
-
-def ensure_pytest(py: str, root: Path) -> str | None:
-    # فقط بررسی می‌کند pytest نصب است یا نه — بدون نصب خودکار، تا محیط کاربر بی‌اجازه تغییر نکند
-    # only checks whether pytest is installed — no silent auto-install, so the user's env isn't changed without asking
-    rc, output = run_cmd([py, "-c", "import pytest"], cwd=root, timeout=30)
     if rc == 0:
-        return None
-    return "pytest unavailable in this environment: " + summarize_tail(output, 5)
+        return output.strip()
+
+    return "(unavailable)"
 
 
-def run_rust_tests(root: Path) -> list[dict[str, Any]]:
-    # اجرای cargo test روی هر کریت راست پیدا شده
-    # run cargo test on every discovered Rust crate
-    results = []
-    for crate_dir in find_rust_dirs(root):
-        rc, output = run_cmd(["cargo", "test"], cwd=crate_dir)
-        source = str(crate_dir.relative_to(root)) or "."
-        warnings, errors = scan_for_issues(f"cargo test — {source}", output)
-        results.append({
-            "kind": "cargo test", "dir": source, "returncode": rc,
-            "summary": summarize_tail(output), "raw_output": output,
-            "warnings": warnings, "errors": errors,
-        })
-    return results
-
-
-def run_python_tests(root: Path) -> list[dict[str, Any]]:
-    # اجرای pytest روی هر پوشه تست پایتون پیدا شده
-    # run pytest on every discovered python test directory
-    results = []
-    py = find_venv_python(root)
-    env = os.environ.copy()
-    env.setdefault("BIMARZ_PROFILE_PASSWORD", "test123")
-    pytest_note = ensure_pytest(py, root)
-    for test_dir in find_python_test_dirs(root):
-        rc, output = run_cmd([py, "-m", "pytest", "-q"], cwd=test_dir, env=env)
-        source = str(test_dir.relative_to(root)) or "."
-        warnings, errors = scan_for_issues(f"pytest — {source}", output)
-        results.append({
-            "kind": "pytest", "dir": source, "returncode": rc,
-            "summary": summarize_tail(output), "raw_output": output,
-            "pytest_note": pytest_note, "warnings": warnings, "errors": errors,
-        })
-    return results
-
-
-def run_quality_checks(root: Path) -> list[dict[str, Any]]:
-    # بررسی‌های کیفیت (fmt/clippy/ruff) فقط با فلگ --quality اجرا می‌شوند، نه به‌صورت پیش‌فرض،
-    # چون روی لپ‌تاپ ۲ گیگ رم کند هستند؛ clippy با CARGO_BUILD_JOBS=1 اجرا می‌شود.
-    # Quality checks (fmt/clippy/ruff) only run with --quality, not by default, since
-    # they're slow on the 2GB RAM laptop; clippy runs with CARGO_BUILD_JOBS=1.
-    results = []
-    env = os.environ.copy()
-    env.setdefault("CARGO_BUILD_JOBS", "1")
-
-    for crate_dir in find_rust_dirs(root):
-        source = str(crate_dir.relative_to(root)) or "."
-        for name, cmd in (
-            ("cargo fmt --check", ["cargo", "fmt", "--check"]),
-            ("cargo clippy", ["cargo", "clippy", "--all-targets", "--all-features"]),
-        ):
-            rc, output = run_cmd(cmd, cwd=crate_dir, env=env, timeout=1800)
-            warnings, errors = scan_for_issues(f"{name} — {source}", output)
-            results.append({
-                "kind": name, "dir": source, "returncode": rc,
-                "summary": summarize_tail(output), "raw_output": output,
-                "warnings": warnings, "errors": errors,
-            })
-
-    if shutil.which("ruff"):
-        rc, output = run_cmd(["ruff", "check", "."], cwd=root, timeout=600)
-        warnings, errors = scan_for_issues("ruff check", output)
-        results.append({
-            "kind": "ruff check", "dir": ".", "returncode": rc,
-            "summary": summarize_tail(output), "raw_output": output,
-            "warnings": warnings, "errors": errors,
-        })
-    else:
-        results.append({
-            "kind": "ruff check", "dir": ".", "returncode": 0,
-            "summary": "ruff not installed — skipped.", "raw_output": "",
-            "warnings": [], "errors": [],
-        })
-
-    return results
-
-
-def collect_git_snapshot(root: Path) -> dict[str, str]:
-    # وضعیت فعلی Git را می‌خواند: شاخه، کامیت، تغییرات ثبت‌نشده، ۱۰ کامیت آخر
-    # reads the current Git state: branch, commit, uncommitted changes, last 10 commits
-    def git(*args: str) -> str:
-        rc, output = run_cmd(["git", *args], cwd=root, timeout=30)
-        return output.strip() if rc == 0 else "(unavailable)"
+def collect_git_snapshot(
+    root: Path,
+) -> dict[str, str]:
+    # فارسی: جمع‌آوری وضعیت Git
+    # English: Collect Git snapshot
 
     return {
-        "branch": git("branch", "--show-current"),
-        "commit": git("rev-parse", "--short", "HEAD"),
-        "status": git("status", "--short"),
-        "log": git("log", "--oneline", "-10"),
+        "branch": git(
+            root,
+            "branch",
+            "--show-current",
+        ),
+        "commit": git(
+            root,
+            "rev-parse",
+            "--short",
+            "HEAD",
+        ),
+        "status": git(
+            root,
+            "status",
+            "--short",
+        ),
+        "log": git(
+            root,
+            "log",
+            "--oneline",
+            "-20",
+        ),
+        "diff": git(
+            root,
+            "diff",
+            "--stat",
+        ),
     }
 
 
 def collect_environment_info() -> dict[str, str]:
-    # نسخه ابزارهای اصلی را برای دیباگ سریع‌تر ثبت می‌کند — سبک، بدون دامپ کامل سیستم
-    # records core toolchain versions for faster debugging — lightweight, not a full system dump
-    def version(cmd: list[str]) -> str:
-        rc, output = run_cmd(cmd, cwd=Path.home(), timeout=15)
-        return output.strip() if rc == 0 else "(unavailable)"
+    # فارسی: اطلاعات محیط
+    # English: Collect environment information
+
+    def version(
+        command: list[str],
+    ) -> str:
+        rc, out = run_cmd(
+            command,
+            cwd=Path.home(),
+            timeout=30,
+        )
+
+        if rc == 0:
+            return out.strip()
+
+        return "(unavailable)"
 
     return {
         "python": version([sys.executable, "--version"]),
         "rustc": version(["rustc", "--version"]),
         "cargo": version(["cargo", "--version"]),
+        "git": version(["git", "--version"]),
+        "ruff": version(["ruff", "--version"]),
     }
 
 
 def build_tree(root: Path) -> str:
-    # ساخت نمای درختی پروژه شبیه دستور tree، با محدودیت عمق و تعداد ورودی
-    # build a project directory tree similar to the `tree` command, capped in depth and entry count
-    lines = [root.name + "/"]
+    # فارسی: ساخت درخت پروژه
+    # English: Build project tree
 
-    def walk(dir_path: Path, prefix: str, depth: int) -> None:
+    lines: list[str] = [f"{root.name}/"]
+
+    def walk(
+        directory: Path,
+        prefix: str,
+        depth: int,
+    ) -> None:
+        # فارسی: پیمایش بازگشتی
+        # English: Recursive directory walk
+
         if depth >= MAX_TREE_DEPTH:
             return
+
         try:
             entries = sorted(
-                [e for e in dir_path.iterdir() if e.name not in IGNORE_DIRS],
-                key=lambda e: (e.is_file(), e.name.lower()),
+                (item for item in directory.iterdir() if item.name not in IGNORE_DIRS),
+                key=lambda item: (
+                    item.is_file(),
+                    item.name.lower(),
+                ),
             )
         except OSError:
             return
 
-        truncated_count = max(0, len(entries) - MAX_TREE_ENTRIES)
+        hidden = max(
+            0,
+            len(entries) - MAX_TREE_ENTRIES,
+        )
+
         entries = entries[:MAX_TREE_ENTRIES]
 
-        for i, entry in enumerate(entries):
-            last = i == len(entries) - 1 and truncated_count == 0
+        for index, entry in enumerate(entries):
+            last = index == len(entries) - 1 and hidden == 0
+
             connector = "└── " if last else "├── "
+
             lines.append(prefix + connector + entry.name + ("/" if entry.is_dir() else ""))
+
             if entry.is_dir():
-                extension = "    " if last else "│   "
-                walk(entry, prefix + extension, depth + 1)
+                walk(
+                    entry,
+                    prefix + ("    " if last else "│   "),
+                    depth + 1,
+                )
 
-        if truncated_count:
-            lines.append(f"{prefix}└── ... ({truncated_count} more entries hidden)")
+        if hidden:
+            lines.append(f"{prefix}└── ... ({hidden} more entries hidden)")
 
-    walk(root, "", 0)
+    walk(
+        root,
+        "",
+        0,
+    )
+
     return "\n".join(lines)
 
 
-def collect_essential_files(root: Path) -> tuple[list[Path], list[tuple[Path, int]]]:
-    # جمع‌آوری فایل‌های ضروری برای فهم پروژه، همراه با علت رد شدن فایل‌های حجیم
-    # collect the essential files for understanding the project, noting oversized skips
-    included, skipped = [], []
+def collect_essential_files(
+    root: Path,
+) -> tuple[list[Path], list[tuple[Path, int]]]:
+    # فارسی: جمع‌آوری فایل‌های ضروری
+    # English: Collect essential source files
+
+    included: list[Path] = []
+    skipped: list[tuple[Path, int]] = []
+
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in IGNORE_DIRS]
-        for name in filenames:
-            path = Path(dirpath) / name
-            if path.suffix not in ESSENTIAL_EXTENSIONS:
+        dirnames[:] = [name for name in dirnames if name not in IGNORE_DIRS]
+
+        for filename in filenames:
+            path = Path(dirpath) / filename
+
+            if path.suffix.lower() not in ESSENTIAL_EXTENSIONS:
                 continue
+
             try:
                 size = path.stat().st_size
             except OSError:
                 continue
+
+            rel = path.relative_to(root)
+
             if size > MAX_FILE_SIZE:
-                skipped.append((path.relative_to(root), size))
+                skipped.append(
+                    (
+                        rel,
+                        size,
+                    )
+                )
             else:
-                included.append(path.relative_to(root))
-    return sorted(included), sorted(skipped)
+                included.append(rel)
+
+    included.sort()
+    skipped.sort()
+
+    return included, skipped
 
 
-def render_issue_index(title: str, issues: list[tuple[str, str]]) -> list[str]:
-    # ساخت یک بخش فهرست‌وار فشرده برای هشدارها یا خطاهای شناسایی‌شده
-    # build one compact list-style section for detected warnings or errors
+def run_rust_tests(
+    root: Path,
+) -> list[dict[str, Any]]:
+    # فارسی: اجرای تست‌های Rust
+    # English: Execute Rust tests
+
+    results: list[dict[str, Any]] = []
+
+    if not (root / "Cargo.toml").exists():
+        return results
+
+    rc, output = run_cmd(
+        [
+            "cargo",
+            "test",
+            "--all",
+        ],
+        cwd=root,
+        timeout=3600,
+    )
+
+    warnings, errors = scan_for_issues(
+        "cargo test",
+        output,
+    )
+
+    results.append(
+        {
+            "kind": "cargo test",
+            "dir": ".",
+            "returncode": rc,
+            "summary": summarize_tail(output),
+            "raw_output": output,
+            "warnings": warnings,
+            "errors": errors,
+        }
+    )
+
+    return results
+
+
+def run_python_tests(
+    root: Path,
+) -> list[dict[str, Any]]:
+    # فارسی: اجرای تست‌های Python
+    # English: Execute Python tests
+
+    results: list[dict[str, Any]] = []
+
+    if shutil.which("pytest") is None:
+        return results
+
+    rc, output = run_cmd(
+        [
+            "pytest",
+            "-q",
+        ],
+        cwd=root,
+        timeout=3600,
+    )
+
+    warnings, errors = scan_for_issues(
+        "pytest",
+        output,
+    )
+
+    results.append(
+        {
+            "kind": "pytest",
+            "dir": ".",
+            "returncode": rc,
+            "summary": summarize_tail(output),
+            "raw_output": output,
+            "warnings": warnings,
+            "errors": errors,
+        }
+    )
+
+    return results
+
+
+def run_quality_checks(
+    root: Path,
+) -> list[dict[str, Any]]:
+    # فارسی: اجرای بررسی‌های کیفیت کد
+    # English: Run quality checks
+
+    results: list[dict[str, Any]] = []
+
+    checks: list[tuple[str, list[str]]] = []
+
+    if shutil.which("ruff"):
+        checks.append(
+            (
+                "ruff check",
+                [
+                    "ruff",
+                    "check",
+                    ".",
+                    "--output-format=concise",
+                ],
+            )
+        )
+
+    if shutil.which("ruff"):
+        checks.append(
+            (
+                "ruff format",
+                [
+                    "ruff",
+                    "format",
+                    ".",
+                    "--check",
+                ],
+            )
+        )
+
+    if shutil.which("cargo") and (root / "Cargo.toml").exists():
+        checks.append(
+            (
+                "cargo fmt",
+                [
+                    "cargo",
+                    "fmt",
+                    "--all",
+                    "--check",
+                ],
+            )
+        )
+
+    if shutil.which("cargo") and (root / "Cargo.toml").exists():
+        checks.append(
+            (
+                "cargo clippy",
+                [
+                    "cargo",
+                    "clippy",
+                    "--all-targets",
+                    "--all-features",
+                    "--",
+                    "-D",
+                    "warnings",
+                ],
+            )
+        )
+
+    for name, command in checks:
+        rc, output = run_cmd(
+            command,
+            cwd=root,
+            timeout=3600,
+        )
+
+        warnings, errors = scan_for_issues(
+            name,
+            output,
+        )
+
+        results.append(
+            {
+                "kind": name,
+                "dir": ".",
+                "returncode": rc,
+                "summary": summarize_tail(output),
+                "raw_output": output,
+                "warnings": warnings,
+                "errors": errors,
+            }
+        )
+
+    return results
+
+
+def render_issue_index(
+    title: str,
+    issues: list[tuple[str, str]],
+) -> list[str]:
+    # فارسی: ساخت بخش هشدارها و خطاها
+    # English: Build warning/error section
+
     if not issues:
-        return [f"## {title}", "", "None detected.", ""]
-    parts = [f"## {title}", ""]
-    for source, line in issues[:MAX_ISSUE_ROWS]:
-        parts.append(f"- **{source}**: `{line}`")
+        return [
+            f"## {title}",
+            "",
+            "None detected.",
+            "",
+        ]
+
+    lines = [
+        f"## {title}",
+        "",
+    ]
+
+    for source, text in issues[:MAX_ISSUE_ROWS]:
+        lines.append(f"- **{source}**: `{text}`")
+
     if len(issues) > MAX_ISSUE_ROWS:
-        parts.append(f"- ... ({len(issues) - MAX_ISSUE_ROWS} more, see full test output above)")
-    parts.append("")
-    return parts
+        lines.append(f"- ... ({len(issues) - MAX_ISSUE_ROWS} more)")
+
+    lines.append("")
+
+    return lines
 
 
-def render_test_output(parts: list[str], result: dict[str, Any]) -> None:
-    # افزودن یک بخش نتیجه‌ی تست/بررسی به گزارش — raw output کامل فقط وقتی نشان داده می‌شود که آن مرحله fail شده باشد
-    # add one test/check result section to the report — full raw output only shown when that step failed
+def render_test_output(
+    parts: list[str],
+    result: dict[str, Any],
+) -> None:
+    # فارسی: افزودن نتیجه تست به گزارش
+    # English: Append test result
+
     status = "PASS" if result["returncode"] == 0 else "FAIL"
-    label = f"{result['kind']} — {result['dir']}" if result.get("dir") else result["kind"]
-    parts.append(f"### {label} [{status}]")
-    if result.get("pytest_note"):
-        parts.append(f"_{result['pytest_note']}_")
+
+    parts.append(f"### {result['kind']} [{status}]")
+
     parts.append("```text")
     parts.append(result["summary"])
     parts.append("```")
-    if result["returncode"] != 0 and result.get("raw_output"):
-        parts += ["", "#### Raw output", "```text", result["raw_output"], "```"]
+
+    if result["returncode"] != 0 and result["raw_output"]:
+        parts.extend(
+            [
+                "",
+                "#### Full output",
+                "",
+                "```text",
+                result["raw_output"],
+                "```",
+                "",
+            ]
+        )
 
 
 def render_report(
@@ -407,181 +658,292 @@ def render_report(
     skipped: list[tuple[Path, int]],
     tests_skipped: bool,
 ) -> str:
-    # ساخت متن نهایی گزارش به صورت یک فایل مارک‌داون واحد
-    # assemble the final report as a single markdown document
+    # فارسی: تولید گزارش نهایی
+    # English: Build the final report
+
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    parts = [
+
+    parts: list[str] = [
         f"# bxt report — {root.name}",
+        "",
         f"Generated: {now}",
         f"Host: {socket.gethostname()}",
-        f"Project path: {root}",
+        f"Project: {root}",
         "",
         AI_NOTICE,
+        "",
         "## Environment",
-        "",
-        f"- **Python:** {env_info['python']}",
-        f"- **rustc:** {env_info['rustc']}",
-        f"- **cargo:** {env_info['cargo']}",
-        "",
-        "## Git",
-        "",
-        f"- **Branch:** {git_info['branch']}",
-        f"- **Commit:** {git_info['commit']}",
-        "",
-        "**Uncommitted changes (`git status --short`):**",
-        "```",
-        git_info["status"] or "(clean — nothing to commit)",
-        "```",
-        "",
-        "**Last 10 commits:**",
-        "```",
-        git_info["log"],
-        "```",
-        "",
-        "## Test results",
         "",
     ]
 
-    all_warnings, all_errors = [], []
+    for key, value in env_info.items():
+        parts.append(f"- **{key}:** {value}")
+
+    parts.extend(
+        [
+            "",
+            "## Git",
+            "",
+            f"- Branch: {git_info['branch']}",
+            f"- Commit: {git_info['commit']}",
+            "",
+            "### Status",
+            "```text",
+            git_info["status"] or "(clean)",
+            "```",
+            "",
+            "### Diff",
+            "```text",
+            git_info["diff"] or "(none)",
+            "```",
+            "",
+            "### Recent commits",
+            "```text",
+            git_info["log"],
+            "```",
+            "",
+            "## Test results",
+            "",
+        ]
+    )
+
+    all_warnings: list[tuple[str, str]] = []
+    all_errors: list[tuple[str, str]] = []
 
     if tests_skipped:
-        parts.append("Test execution was skipped by user request (--skip-tests).")
-    elif not rust_results and not python_results:
-        parts.append("No test suites were discovered under this project path.")
-    for r in rust_results + python_results:
-        render_test_output(parts, r)
-        all_warnings += r["warnings"]
-        all_errors += r["errors"]
+        parts.append("Tests skipped.")
+        parts.append("")
+
+    for result in rust_results + python_results:
+        render_test_output(
+            parts,
+            result,
+        )
+
+        all_warnings.extend(result["warnings"])
+
+        all_errors.extend(result["errors"])
 
     if quality_results:
-        parts += ["", "## Quality checks", ""]
-        for r in quality_results:
-            render_test_output(parts, r)
-            all_warnings += r["warnings"]
-            all_errors += r["errors"]
+        parts.extend(
+            [
+                "",
+                "## Quality checks",
+                "",
+            ]
+        )
 
-    # تشخیص خودکار خطاهای شناخته‌شده (کاذب) در خروجی تست‌ها و افزودن توضیحشان به گزارش
-    # automatically detect known (false-positive) error patterns and add their explanation
-    combined_output = "\n".join(r["summary"] for r in rust_results + python_results)
-    known_issues = [note for pattern, note in KNOWN_ISSUE_PATTERNS if pattern in combined_output]
-    if known_issues:
-        parts += ["", "## Known issues"]
-        parts += [f"- {note}" for note in known_issues]
+        for result in quality_results:
+            render_test_output(
+                parts,
+                result,
+            )
+
+            all_warnings.extend(result["warnings"])
+
+            all_errors.extend(result["errors"])
+
+    combined = "\n".join(item["raw_output"] for item in (rust_results + python_results + quality_results))
+
+    detected: list[str] = []
+
+    for pattern, note in KNOWN_ISSUE_PATTERNS:
+        if pattern.lower() in combined.lower():
+            detected.append(note)
+
+    if detected:
+        parts.extend(
+            [
+                "",
+                "## Known issues",
+                "",
+            ]
+        )
+
+        for item in detected:
+            parts.append(f"- {item}")
+
         parts.append("")
 
-    # فهرست فشرده‌ی هشدارها/خطاهای واقعی که از کل خروجی خام (نه فقط چند خط آخر) استخراج شده‌اند
-    # compact index of real warnings/errors extracted from the full raw output (not just the tail)
-    parts.append("")
-    parts += render_issue_index("Warnings detected", all_warnings)
-    parts += render_issue_index("Errors detected", all_errors)
+    parts.extend(
+        render_issue_index(
+            "Warnings detected",
+            all_warnings,
+        )
+    )
 
-    parts += ["## Project tree", "```", tree_text, "```", ""]
+    parts.extend(
+        render_issue_index(
+            "Errors detected",
+            all_errors,
+        )
+    )
 
-    parts.append("## Essential files")
-    parts.append(f"{len(included)} files included, {len(skipped)} skipped for exceeding {human_size(MAX_FILE_SIZE)}.")
+    parts.extend(
+        [
+            "## Project tree",
+            "",
+            "```text",
+            tree_text,
+            "```",
+            "",
+            "## Included files",
+            "",
+            f"{len(included)} included / {len(skipped)} skipped",
+            "",
+        ]
+    )
+
     if skipped:
-        parts.append("")
-        parts.append("Skipped (too large):")
-        for rel_path, size in skipped:
-            parts.append(f"- {rel_path} ({human_size(size)})")
+        parts.extend(
+            [
+                "### Skipped files",
+                "",
+            ]
+        )
 
-    for rel_path in included:
-        full_path = root / rel_path
-        lang = LANG_MAP.get(full_path.suffix, "")
-        try:
-            content = full_path.read_text(encoding="utf-8", errors="replace")
-        except OSError as exc:
-            content = f"(could not read file: {exc})"
+        for path, size in skipped:
+            parts.append(f"- {path} ({human_size(size)})")
+
         parts.append("")
-        parts.append(f"### {rel_path}")
-        parts.append(f"```{lang}")
-        parts.append(content)
-        parts.append("```")
+
+    for rel in included:
+        full = root / rel
+
+        try:
+            text = full.read_text(
+                encoding="utf-8",
+                errors="replace",
+            )
+        except OSError as exc:
+            text = str(exc)
+
+        lang = LANG_MAP.get(
+            full.suffix.lower(),
+            "",
+        )
+
+        parts.extend(
+            [
+                "",
+                f"# FILE: {rel}",
+                "",
+                f"Size: {human_size(full.stat().st_size)}",
+                "",
+                f"```{lang}",
+                text,
+                "```",
+            ]
+        )
 
     return "\n".join(parts)
 
 
-def write_sha256(path: Path) -> str:
-    # نوشتن فایل sha256 کنار گزارش برای اطمینان از سالم بودن فایل بعد از انتقال/آپلود
-    # write a companion sha256 file next to the report to verify it survived transfer/upload intact
+def write_sha256(
+    path: Path,
+) -> str:
+    # فارسی: تولید فایل SHA256
+    # English: Generate SHA256 checksum file
+
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
+
     checksum_path = path.with_suffix(path.suffix + ".sha256")
-    checksum_path.write_text(f"{digest}  {path.name}\n", encoding="utf-8")
+
+    checksum_path.write_text(
+        f"{digest}  {path.name}\n",
+        encoding="utf-8",
+    )
+
     return digest
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(prog="bxt", description="Run bimarz tests and export a full project report for an AI agent.")
-    parser.add_argument("--project", default=str(DEFAULT_PROJECT_PATH), help="Path to the bimarz project root")
-    parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR), help="Directory to write the report into")
-    parser.add_argument("--output-name", default=DEFAULT_OUTPUT_NAME, help="Report file name")
-    parser.add_argument("--skip-tests", action="store_true", help="Skip running cargo/pytest and only export the report")
-    parser.add_argument("--quality", action="store_true", help="Also run cargo fmt/clippy and ruff (slow — off by default)")
-    args = parser.parse_args()
+def main() -> int:
+    # فارسی: تابع اصلی برنامه
+    # English: Main program entry point
+
+    args = parse_args()
 
     root = Path(args.project).expanduser().resolve()
-    if not root.is_dir():
-        print(f"ERROR: project path does not exist: {root}")
-        sys.exit(1)
 
-    output_dir = Path(args.output_dir).expanduser()
-    output_dir.mkdir(parents=True, exist_ok=True)
+    if not root.is_dir():
+        print(
+            f"Project not found: {root}",
+            file=sys.stderr,
+        )
+        return 1
+
+    output_dir = Path(args.output_dir).expanduser().resolve()
+
+    output_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
     output_path = output_dir / args.output_name
 
-    rust_results, python_results = [], []
-    if not args.skip_tests:
-        print("Running Rust test suites...")
-        rust_results = run_rust_tests(root)
-        print("Running Python test suites...")
-        python_results = run_python_tests(root)
-    else:
-        print("Skipping test execution (--skip-tests).")
-
-    quality_results = []
-    if args.quality:
-        print("Running quality checks (--quality)...")
-        quality_results = run_quality_checks(root)
-
-    print("Reading Git snapshot...")
+    print("Collecting Git information...")
     git_info = collect_git_snapshot(root)
 
-    print("Reading environment info...")
+    print("Collecting environment information...")
     env_info = collect_environment_info()
 
     print("Building project tree...")
     tree_text = build_tree(root)
 
-    print("Collecting essential source files...")
+    print("Collecting project files...")
     included, skipped = collect_essential_files(root)
 
+    rust_results: list[dict[str, Any]] = []
+    python_results: list[dict[str, Any]] = []
+    quality_results: list[dict[str, Any]] = []
+
+    if not args.skip_tests:
+        print("Running Rust tests...")
+        rust_results = run_rust_tests(root)
+
+        print("Running Python tests...")
+        python_results = run_python_tests(root)
+
+    if args.quality:
+        print("Running quality checks...")
+        quality_results = run_quality_checks(root)
+
     print("Rendering report...")
-    report_text = render_report(
-        root, rust_results, python_results, quality_results,
-        git_info, env_info, tree_text, included, skipped, args.skip_tests,
+
+    report = render_report(
+        root=root,
+        rust_results=rust_results,
+        python_results=python_results,
+        quality_results=quality_results,
+        git_info=git_info,
+        env_info=env_info,
+        tree_text=tree_text,
+        included=included,
+        skipped=skipped,
+        tests_skipped=args.skip_tests,
     )
 
-    # اگر فایل هم‌نامی از قبل در پوشه دانلود وجود دارد، حذفش کن و گزارش بده
-    # if a same-named file already exists in the Download folder, delete it and report that
-    if output_path.exists():
-        old_size = output_path.stat().st_size
-        output_path.unlink()
-        print(f"Removed existing file: {output_path} ({human_size(old_size)})")
+    output_path.write_text(
+        report,
+        encoding="utf-8",
+    )
 
-    output_path.write_text(report_text, encoding="utf-8")
-    digest = write_sha256(output_path)
-    new_size = output_path.stat().st_size
+    digest = write_sha256(
+        output_path,
+    )
 
-    total_warnings = sum(len(r["warnings"]) for r in rust_results + python_results + quality_results)
-    total_errors = sum(len(r["errors"]) for r in rust_results + python_results + quality_results)
-    rust_fail = sum(1 for r in rust_results if r["returncode"] != 0)
-    py_fail = sum(1 for r in python_results if r["returncode"] != 0)
+    print()
+    print("=" * 60)
+    print("Report completed")
+    print("=" * 60)
+    print(f"Output : {output_path}")
+    print(f"SHA256 : {digest}")
+    print(f"Files   : {len(included)}")
+    print(f"Skipped : {len(skipped)}")
+    print("=" * 60)
 
-    print(f"SUCCESS: report written to {output_path} ({human_size(new_size)})")
-    print(f"SHA256: {digest}")
-    print(f"Files included: {len(included)} | Files skipped: {len(skipped)}")
-    print(f"Rust suites: {len(rust_results)} run, {rust_fail} failed | Python suites: {len(python_results)} run, {py_fail} failed")
-    print(f"Warnings detected: {total_warnings} | Errors detected: {total_errors}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
