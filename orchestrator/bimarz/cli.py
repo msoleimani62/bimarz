@@ -105,10 +105,9 @@ def main() -> NoReturn:
             raise
         console.print(f"[red]Error: {exc}[/red]")
         console.print(
-            "[yellow]hint:[/yellow] run with --debug for full traceback, "
-            "or 'bimarz doctor' to check your setup"
+            "[yellow]hint:[/yellow] run with --debug for full traceback, or 'bimarz doctor' to check your setup"
         )
-        raise SystemExit(1)
+        raise SystemExit(1) from exc
 
     raise SystemExit(0)
 

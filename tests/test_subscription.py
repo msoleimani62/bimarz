@@ -9,7 +9,6 @@ parsing.
 from __future__ import annotations
 
 import pytest
-
 from bimarz.subscription import MalformedLinkError, UnsupportedLinkError, parse_vless_link
 
 _VALID_LINK = (
@@ -60,22 +59,19 @@ def test_rejects_missing_host() -> None:
 def test_rejects_non_reality_security() -> None:
     with pytest.raises(UnsupportedLinkError):
         parse_vless_link(
-            "vless://8f9a3c2e-1234-4a5b-8c9d-0e1f2a3b4c5d@example.com:443"
-            "?security=tls&flow=xtls-rprx-vision&pbk=x"
+            "vless://8f9a3c2e-1234-4a5b-8c9d-0e1f2a3b4c5d@example.com:443?security=tls&flow=xtls-rprx-vision&pbk=x"
         )
 
 
 def test_rejects_non_vision_flow() -> None:
     with pytest.raises(UnsupportedLinkError):
         parse_vless_link(
-            "vless://8f9a3c2e-1234-4a5b-8c9d-0e1f2a3b4c5d@example.com:443"
-            "?security=reality&flow=none&pbk=x"
+            "vless://8f9a3c2e-1234-4a5b-8c9d-0e1f2a3b4c5d@example.com:443?security=reality&flow=none&pbk=x"
         )
 
 
 def test_rejects_missing_public_key() -> None:
     with pytest.raises(MalformedLinkError):
         parse_vless_link(
-            "vless://8f9a3c2e-1234-4a5b-8c9d-0e1f2a3b4c5d@example.com:443"
-            "?security=reality&flow=xtls-rprx-vision"
+            "vless://8f9a3c2e-1234-4a5b-8c9d-0e1f2a3b4c5d@example.com:443?security=reality&flow=xtls-rprx-vision"
         )

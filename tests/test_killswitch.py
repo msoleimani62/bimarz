@@ -9,7 +9,7 @@ Pure logic tests — no real iptables execution needed.
 
 from __future__ import annotations
 
-from bimarz.killswitch_manager import KillSwitchManager, KillSwitchTriggeredError
+from bimarz.killswitch_manager import KillSwitchManager
 
 
 def test_initial_state_is_inactive() -> None:
@@ -69,6 +69,7 @@ def test_process_watcher_stays_alive_while_process_lives() -> None:
 
     manager.start_process_watcher(poll_fn=fake_poll, interval_seconds=0.01)
     import time
+
     time.sleep(0.05)
     assert manager.is_watcher_alive() is True
     manager.stop_process_watcher()

@@ -13,12 +13,12 @@ Run locally after: maturin develop --release
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import tempfile
 import time
 from pathlib import Path
 
 import pytest
-
 from bimarz.engine import EngineNotBuiltError, get_engine_client_class
 from bimarz.xray_config import build_connect_config
 from bimarz.xray_manager import XrayProcess, find_xray_binary, probe_tcp_port
@@ -58,9 +58,7 @@ def xray_process_with_grpc(xray_process: XrayProcess):
     deadline = time.monotonic() + MAX_STARTUP_WAIT_SECONDS
     port_open = False
     while time.monotonic() < deadline:
-        port_open = asyncio.run(
-            probe_tcp_port(GRPC_HOST, GRPC_PORT, timeout=1.0)
-        )
+        port_open = asyncio.run(probe_tcp_port(GRPC_HOST, GRPC_PORT, timeout=1.0))
         if port_open:
             break
         time.sleep(0.5)
@@ -102,10 +100,8 @@ def test_grpc_api_responds_to_engine_client(
         )
         # A harmless call that returns NOT_FOUND even if tag does not exist.
         # یک فراخوانی بی‌ضرر که حتی اگر tag وجود نداشته باشد NOT_FOUND برمی‌گرداند.
-        try:
+        with contextlib.suppress(Exception):
             await client.get_outbound_stats("__integration_probe__")
-        except Exception:
-            pass
         return True
 
     result = asyncio.run(probe())

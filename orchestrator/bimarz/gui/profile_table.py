@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Final
 
-from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import QHeaderView, QTableWidget, QTableWidgetItem
 
@@ -64,10 +63,7 @@ class ProfileTable(QTableWidget):
                 QTableWidgetItem(profile.remark),
             )
 
-            address = (
-                f"{profile.outbound_config.get('address', '?')}:"
-                f"{profile.outbound_config.get('port', '?')}"
-            )
+            address = f"{profile.outbound_config.get('address', '?')}:{profile.outbound_config.get('port', '?')}"
 
             self.setItem(
                 row,

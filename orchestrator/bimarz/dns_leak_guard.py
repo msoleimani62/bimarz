@@ -14,6 +14,7 @@ def get_default_dns_guard_config() -> dict:
     """Returns the default DNS guard configuration as a Python dict."""
     try:
         from bimarz._engine_core import build_dns_guard_config_json
+
         return json.loads(build_dns_guard_config_json())
     except EngineNotBuiltError:
         return {
@@ -27,6 +28,7 @@ def get_dns_routing_rule() -> dict:
     """Returns a routing rule dict that forces port-53 traffic to the DNS outbound."""
     try:
         from bimarz._engine_core import build_dns_routing_rule_json
+
         return json.loads(build_dns_routing_rule_json())
     except EngineNotBuiltError:
         return {

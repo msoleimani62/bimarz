@@ -12,15 +12,14 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from bimarz.commands.doctor import _doctor_timeout_seconds, _render_doctor_report
 from bimarz.config import AppConfig
-from bimarz.services.doctor import DoctorService
 from bimarz.constants import (
     DOCTOR_GRPC_PROBE_TIMEOUT_ENV_VAR,
     DOCTOR_GRPC_PROBE_TIMEOUT_SECONDS,
 )
 from bimarz.models import DoctorReport, Environment, GrpcStatus
+from bimarz.services.doctor import DoctorService
 from bimarz.xray_manager import BinaryNotFoundError
 
 
@@ -70,69 +69,83 @@ class TestDoctorService:
             assert report.xray_binary_path is None
 
     def test_report_shows_binary_found_with_version(self, config: AppConfig) -> None:
-        with patch("bimarz.services.doctor.find_xray_binary", return_value="/usr/bin/xray"):
-            with patch("bimarz.services.doctor.get_xray_version", return_value="Xray 1.8.24"):
-                svc = DoctorService(config)
-                report = asyncio.run(svc.run())
-                assert report.xray_binary_found is True
-                assert report.xray_binary_path == "/usr/bin/xray"
-                assert report.xray_version == "Xray 1.8.24"
+        with (
+            patch("bimarz.services.doctor.find_xray_binary", return_value="/usr/bin/xray"),
+            patch("bimarz.services.doctor.get_xray_version", return_value="Xray 1.8.24"),
+        ):
+            svc = DoctorService(config)
+            report = asyncio.run(svc.run())
+            assert report.xray_binary_found is True
+            assert report.xray_binary_path == "/usr/bin/xray"
+            assert report.xray_version == "Xray 1.8.24"
 
     def test_report_counts_profiles(self, config: AppConfig) -> None:
         mock_profile = MagicMock()
         mock_profile.profile_id = "test-id"
-        with patch("bimarz.services.doctor.find_xray_binary", side_effect=BinaryNotFoundError("not found")):
-            with patch("bimarz.services.doctor.ProfileStore") as MockStore:
-                instance = MockStore.return_value
-                instance.list_profiles.return_value = [mock_profile, mock_profile]
-                svc = DoctorService(config)
-                report = asyncio.run(svc.run())
-                assert report.profiles_count == 2
+        with (
+            patch("bimarz.services.doctor.find_xray_binary", side_effect=BinaryNotFoundError("not found")),
+            patch("bimarz.services.doctor.ProfileStore") as MockStore,
+        ):
+            instance = MockStore.return_value
+            instance.list_profiles.return_value = [mock_profile, mock_profile]
+            svc = DoctorService(config)
+            report = asyncio.run(svc.run())
+            assert report.profiles_count == 2
 
     def test_report_shows_killswitch_inactive_by_default(self, config: AppConfig) -> None:
-        with patch("bimarz.services.doctor.find_xray_binary", side_effect=BinaryNotFoundError("not found")):
-            with patch("bimarz.services.doctor.KillSwitchManager") as MockKS:
-                instance = MockKS.return_value
-                instance.state.active = False
-                svc = DoctorService(config)
-                report = asyncio.run(svc.run())
-                assert report.killswitch_active is False
+        with (
+            patch("bimarz.services.doctor.find_xray_binary", side_effect=BinaryNotFoundError("not found")),
+            patch("bimarz.services.doctor.KillSwitchManager") as MockKS,
+        ):
+            instance = MockKS.return_value
+            instance.state.active = False
+            svc = DoctorService(config)
+            report = asyncio.run(svc.run())
+            assert report.killswitch_active is False
 
     def test_grpc_status_unreachable_when_tcp_fails(self, config: AppConfig) -> None:
-        with patch("bimarz.services.doctor.find_xray_binary", side_effect=BinaryNotFoundError("not found")):
-            with patch("bimarz.services.doctor.probe_tcp_port", return_value=False):
-                svc = DoctorService(config)
-                report = asyncio.run(svc.run())
-                assert report.grpc_status == GrpcStatus.unreachable
+        with (
+            patch("bimarz.services.doctor.find_xray_binary", side_effect=BinaryNotFoundError("not found")),
+            patch("bimarz.services.doctor.probe_tcp_port", return_value=False),
+        ):
+            svc = DoctorService(config)
+            report = asyncio.run(svc.run())
+            assert report.grpc_status == GrpcStatus.unreachable
 
     def test_grpc_status_listening_when_tcp_ok_but_probe_fails(self, config: AppConfig) -> None:
-        with patch("bimarz.services.doctor.find_xray_binary", side_effect=BinaryNotFoundError("not found")):
-            with patch("bimarz.services.doctor.probe_tcp_port", return_value=True):
-                with patch("bimarz.services.doctor.probe_grpc_with_engine", return_value=False):
-                    svc = DoctorService(config)
-                    report = asyncio.run(svc.run())
-                    assert report.grpc_status == GrpcStatus.listening
+        with (
+            patch("bimarz.services.doctor.find_xray_binary", side_effect=BinaryNotFoundError("not found")),
+            patch("bimarz.services.doctor.probe_tcp_port", return_value=True),
+            patch("bimarz.services.doctor.probe_grpc_with_engine", return_value=False),
+        ):
+            svc = DoctorService(config)
+            report = asyncio.run(svc.run())
+            assert report.grpc_status == GrpcStatus.listening
 
     def test_grpc_status_responding_when_probe_succeeds(self, config: AppConfig) -> None:
-        with patch("bimarz.services.doctor.find_xray_binary", side_effect=BinaryNotFoundError("not found")):
-            with patch("bimarz.services.doctor.probe_tcp_port", return_value=True):
-                with patch("bimarz.services.doctor.probe_grpc_with_engine", return_value=True):
-                    svc = DoctorService(config)
-                    report = asyncio.run(svc.run())
-                    assert report.grpc_status == GrpcStatus.responding
+        with (
+            patch("bimarz.services.doctor.find_xray_binary", side_effect=BinaryNotFoundError("not found")),
+            patch("bimarz.services.doctor.probe_tcp_port", return_value=True),
+            patch("bimarz.services.doctor.probe_grpc_with_engine", return_value=True),
+        ):
+            svc = DoctorService(config)
+            report = asyncio.run(svc.run())
+            assert report.grpc_status == GrpcStatus.responding
 
     def test_grpc_probe_receives_endpoint_string_not_client(self, config: AppConfig) -> None:
         """probe_grpc_with_engine must receive a URI string, not a client instance."""
-        with patch("bimarz.services.doctor.find_xray_binary", side_effect=BinaryNotFoundError("not found")):
-            with patch("bimarz.services.doctor.probe_tcp_port", return_value=True):
-                with patch("bimarz.services.doctor.probe_grpc_with_engine") as mock_probe:
-                    mock_probe.return_value = True
-                    svc = DoctorService(config)
-                    asyncio.run(svc.run())
-                    mock_probe.assert_called_once()
-                    endpoint = mock_probe.call_args.args[0]
-                    assert endpoint.startswith("http://")
-                    assert "127.0.0.1" in endpoint
+        with (
+            patch("bimarz.services.doctor.find_xray_binary", side_effect=BinaryNotFoundError("not found")),
+            patch("bimarz.services.doctor.probe_tcp_port", return_value=True),
+            patch("bimarz.services.doctor.probe_grpc_with_engine") as mock_probe,
+        ):
+            mock_probe.return_value = True
+            svc = DoctorService(config)
+            asyncio.run(svc.run())
+            mock_probe.assert_called_once()
+            endpoint = mock_probe.call_args.args[0]
+            assert endpoint.startswith("http://")
+            assert "127.0.0.1" in endpoint
 
     def test_explicit_xray_bin_path_passed_through(self, config: AppConfig) -> None:
         with patch("bimarz.services.doctor.find_xray_binary") as mock_find:
@@ -143,14 +156,16 @@ class TestDoctorService:
                 mock_find.assert_called_once_with("/custom/xray")
 
     def test_custom_timeout_override(self, config: AppConfig) -> None:
-        with patch("bimarz.services.doctor.find_xray_binary", side_effect=BinaryNotFoundError("not found")):
-            with patch("bimarz.services.doctor.probe_tcp_port") as mock_probe:
-                mock_probe.return_value = False
-                svc = DoctorService(config)
-                asyncio.run(svc.run(timeout=5.0))
-                mock_probe.assert_called_once()
-                call_args = mock_probe.call_args
-                assert call_args.kwargs.get("timeout") == 5.0
+        with (
+            patch("bimarz.services.doctor.find_xray_binary", side_effect=BinaryNotFoundError("not found")),
+            patch("bimarz.services.doctor.probe_tcp_port") as mock_probe,
+        ):
+            mock_probe.return_value = False
+            svc = DoctorService(config)
+            asyncio.run(svc.run(timeout=5.0))
+            mock_probe.assert_called_once()
+            call_args = mock_probe.call_args
+            assert call_args.kwargs.get("timeout") == 5.0
 
 
 class TestRenderDoctorReport:
@@ -321,8 +336,7 @@ class TestGrpcStatusEnum:
         assert GrpcStatus.responding is not None
 
     def test_backward_compat_aliases(self) -> None:
-        assert GrpcStatus.NOT_CHECKED == GrpcStatus.not_checked
-        assert GrpcStatus.UNREACHABLE == GrpcStatus.unreachable
-        assert GrpcStatus.LISTENING == GrpcStatus.listening
-        assert GrpcStatus.RESPONDING == GrpcStatus.responding
-
+        assert GrpcStatus.not_checked == GrpcStatus.NOT_CHECKED
+        assert GrpcStatus.unreachable == GrpcStatus.UNREACHABLE
+        assert GrpcStatus.listening == GrpcStatus.LISTENING
+        assert GrpcStatus.responding == GrpcStatus.RESPONDING

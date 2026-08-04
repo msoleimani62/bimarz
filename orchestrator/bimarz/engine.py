@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+from contextlib import suppress
 
 
 class EngineNotBuiltError(Exception):
@@ -103,19 +104,15 @@ async def probe_grpc_with_engine(endpoint: str, timeout: float) -> bool:
     client = None
 
     try:
-        client = await asyncio.wait_for(
-            client_class.connect(endpoint), timeout=timeout
-        )
+        client = await asyncio.wait_for(client_class.connect(endpoint), timeout=timeout)
         # یک فراخوانی بی‌ضرر که حتی اگر tag وجود نداشته باشد، یک پاسخ
         # gRPC واقعی (NOT_FOUND) برمی‌گرداند — این کافی است تا ثابت کند
         # سرویس gRPC واقعاً پاسخ‌ده است.
         # A harmless call that will return a real gRPC response (NOT_FOUND)
         # even if the tag does not exist — enough to prove the gRPC service
         # is actually responding.
-        try:
+        with suppress(Exception):
             await client.get_outbound_stats("__bimarz_probe_nonexistent__")
-        except Exception:
-            pass
         return True
     except Exception:
         return False
@@ -123,6 +120,7 @@ async def probe_grpc_with_engine(endpoint: str, timeout: float) -> bool:
         if client is not None:
             close = getattr(client, "close", None)
             if callable(close):
-                result = close()
-                if inspect.isawaitable(result):
-                    await result
+                with suppress(Exception):
+                    result = close()
+                    if inspect.isawaitable(result):
+                        await result

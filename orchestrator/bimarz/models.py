@@ -38,6 +38,7 @@ class GrpcStatus(str, Enum):
     LISTENING = listening
     RESPONDING = responding
 
+
 @dataclass(frozen=True)
 class VlessRealityOutbound:
     """All fields needed to describe a single VLESS + Reality + Vision outbound.

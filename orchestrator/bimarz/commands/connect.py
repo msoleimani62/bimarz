@@ -25,6 +25,7 @@ def _make_event_handler() -> EventHandler:
     """Create the default console event handler.
     هندلر پیش‌فرض رویدادهای کنسول را می‌سازد.
     """
+
     def handler(event: ConnectionEvent, data: EventPayload) -> None:
         if event == ConnectionEvent.FAILOVER_TRIGGERED:
             console.print(f"[yellow]Failover: switched to {data.get('new_profile_id')}[/yellow]")
@@ -36,6 +37,7 @@ def _make_event_handler() -> EventHandler:
             console.print("[dim]Disconnected.[/dim]")
         elif event == ConnectionEvent.ERROR:
             console.print(f"[red]Error: {data.get('error')}[/red]")
+
     return handler
 
 
@@ -68,15 +70,21 @@ async def _run_connect_async(args: argparse.Namespace, config: AppConfig) -> Non
 def run_connect(args: argparse.Namespace, config: AppConfig) -> None:
     try:
         asyncio.run(_run_connect_async(args, config))
-    except (BinaryNotFoundError, EngineNotBuiltError) as exc:
-        console.print(f"[red]{exc}[/red]")
-        from bimarz.errors import get_hint
-        hint = get_hint(exc)
-        if hint:
-            console.print(f"[yellow]hint:[/yellow] {hint}")
-        raise SystemExit(1)
+    except BinaryNotFoundError as exc:
+        console.print(
+            "[red]xray-core binary not found.[/red]\n"
+            "[yellow]hint:[/yellow] install xray-core or use --xray-bin /path/to/xray\n"
+            "[yellow]hint:[/yellow] run 'bimarz doctor' for full diagnostics"
+        )
+        raise SystemExit(1) from exc
+    except EngineNotBuiltError as exc:
+        console.print(
+            "[red]Rust extension not built.[/red]\n"
+            "[yellow]hint:[/yellow] source .venv/bin/activate && maturin develop --release"
+        )
+        raise SystemExit(1) from exc
     except Exception as exc:
         if args.debug:
             raise
         console.print(f"[red]Connection failed: {exc}[/red]")
-        raise SystemExit(1)
+        raise SystemExit(1) from exc

@@ -8,7 +8,7 @@ and handle the software fallback when kernel-level is unavailable.
 from __future__ import annotations
 
 import threading
-from typing import Callable
+from collections.abc import Callable
 
 from bimarz.engine import EngineNotBuiltError
 from bimarz.models import KillSwitchState
@@ -44,6 +44,7 @@ class KillSwitchManager:
         """Tests whether we can actually write and delete iptables rules."""
         try:
             from bimarz._engine_core import probe_kernel_killswitch_capability
+
             return probe_kernel_killswitch_capability()
         except EngineNotBuiltError:
             return False
@@ -54,31 +55,21 @@ class KillSwitchManager:
         kernel_capable = self.probe_kernel_capability()
 
         if kernel_capable:
-            self._state = KillSwitchState(
-                kernel_capable=True, active=True, interface=interface, xray_uid=xray_uid
-            )
+            self._state = KillSwitchState(kernel_capable=True, active=True, interface=interface, xray_uid=xray_uid)
             try:
                 from bimarz._engine_core import apply_killswitch_rules
+
                 apply_killswitch_rules(interface, xray_uid)
-                console.print(
-                    f"[green]kill-switch[/green] kernel-level active on {interface}"
-                )
+                console.print(f"[green]kill-switch[/green] kernel-level active on {interface}")
             except EngineNotBuiltError:
-                console.print(
-                    "[yellow]warning:[/yellow] Rust extension not built, cannot apply kernel rules"
-                )
+                console.print("[yellow]warning:[/yellow] Rust extension not built, cannot apply kernel rules")
             except Exception as exc:
                 console.print(
-                    f"[yellow]warning:[/yellow] failed to apply kernel rules: {exc}. "
-                    "Falling back to software mode."
+                    f"[yellow]warning:[/yellow] failed to apply kernel rules: {exc}. Falling back to software mode."
                 )
-                self._state = KillSwitchState(
-                    kernel_capable=False, active=True, interface=interface, xray_uid=xray_uid
-                )
+                self._state = KillSwitchState(kernel_capable=False, active=True, interface=interface, xray_uid=xray_uid)
         else:
-            self._state = KillSwitchState(
-                kernel_capable=False, active=True, interface=interface, xray_uid=xray_uid
-            )
+            self._state = KillSwitchState(kernel_capable=False, active=True, interface=interface, xray_uid=xray_uid)
             console.print(
                 "[yellow]warning:[/yellow] kernel-level kill-switch unavailable in this "
                 f"environment ({env.value}). Using software-fallback mode: if xray-core "
@@ -122,11 +113,10 @@ class KillSwitchManager:
         if self._state.kernel_capable and self._state.active and self._state.interface is not None:
             try:
                 from bimarz._engine_core import remove_killswitch_rules
+
                 remove_killswitch_rules(self._state.interface, self._state.xray_uid)
             except Exception:
                 pass
-        self._state = KillSwitchState(
-            kernel_capable=self._state.kernel_capable, active=False
-        )
+        self._state = KillSwitchState(kernel_capable=self._state.kernel_capable, active=False)
         self.stop_process_watcher()
         console.print("[green]kill-switch[/green] deactivated")

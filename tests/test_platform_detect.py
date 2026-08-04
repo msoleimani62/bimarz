@@ -14,7 +14,6 @@ testing already used throughout open-downloader-cli's test suite.
 from __future__ import annotations
 
 import pytest
-
 from bimarz import platform_detect
 from bimarz.models import Environment
 

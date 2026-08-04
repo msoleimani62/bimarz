@@ -67,11 +67,13 @@ def build_connect_config(
     rules = []
     if enable_dns_guard:
         rules.append(get_dns_routing_rule())
-    rules.append({
-        "type": "field",
-        "inboundTag": ["socks-in"],
-        "outboundTag": ACTIVE_OUTBOUND_TAG,
-    })
+    rules.append(
+        {
+            "type": "field",
+            "inboundTag": ["socks-in"],
+            "outboundTag": ACTIVE_OUTBOUND_TAG,
+        }
+    )
 
     config["routing"] = {"rules": rules}
     return json.dumps(config, indent=2)

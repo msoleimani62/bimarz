@@ -64,30 +64,18 @@ class LatencyChart(QWidget):
             self._layout.addWidget(self._chart_view)
 
         else:
-            self._fallback_label = QLabel(
-                "Latency chart unavailable"
-            )
-            self._fallback_label.setAlignment(
-                Qt.AlignCenter
-            )
-            self._layout.addWidget(
-                self._fallback_label
-            )
+            self._fallback_label = QLabel("Latency chart unavailable")
+            self._fallback_label.setAlignment(Qt.AlignCenter)
+            self._layout.addWidget(self._fallback_label)
 
     @Slot(float)
     def add_point(self, latency_ms: float) -> None:
         """Append latency sample."""
 
-        if (
-            math.isnan(latency_ms)
-            or latency_ms < 0
-            or math.isinf(latency_ms)
-        ):
+        if math.isnan(latency_ms) or latency_ms < 0 or math.isinf(latency_ms):
             return
 
-        self._data_points.append(
-            float(latency_ms)
-        )
+        self._data_points.append(float(latency_ms))
 
         if len(self._data_points) > self._MAX_POINTS:
             self._data_points.pop(0)
@@ -96,9 +84,7 @@ class LatencyChart(QWidget):
             self._refresh_chart()
 
         else:
-            self._fallback_label.setText(
-                f"Latest latency: {latency_ms:.0f} ms"
-            )
+            self._fallback_label.setText(f"Latest latency: {latency_ms:.0f} ms")
 
     def _refresh_chart(self) -> None:
         self._series.clear()
@@ -141,6 +127,4 @@ class LatencyChart(QWidget):
             self._axis_y.setRange(0, 10)
 
         else:
-            self._fallback_label.setText(
-                "Latency chart unavailable"
-            )
+            self._fallback_label.setText("Latency chart unavailable")

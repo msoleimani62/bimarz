@@ -41,9 +41,7 @@ async def check_profile_health(profile: ServerProfile) -> HealthCheckResult:
     outbound = profile.outbound_config
     timeout_ms = int(HEALTHCHECK_TIMEOUT_SECONDS * 1000)
 
-    reachable, latency_ms, error_message = await check_fn(
-        outbound["address"], int(outbound["port"]), timeout_ms
-    )
+    reachable, latency_ms, error_message = await check_fn(outbound["address"], int(outbound["port"]), timeout_ms)
 
     return HealthCheckResult(
         profile_id=profile.profile_id,
@@ -162,9 +160,7 @@ class FailoverManager:
         candidates = [
             (result.profile_id, result.latency_ms)
             for result in all_results.values()
-            if result.profile_id != self._active_profile_id
-            and result.reachable
-            and result.latency_ms is not None
+            if result.profile_id != self._active_profile_id and result.reachable and result.latency_ms is not None
         ]
         if not candidates:
             return None

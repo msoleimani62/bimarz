@@ -63,11 +63,7 @@ def find_xray_binary(explicit_path: str | None = None) -> Path | None:
     """
     if explicit_path:
         candidate = Path(explicit_path)
-        return (
-            candidate
-            if candidate.is_file() and os.access(candidate, os.X_OK)
-            else None
-        )
+        return candidate if candidate.is_file() and os.access(candidate, os.X_OK) else None
 
     found = shutil.which("xray")
     return Path(found) if found else None
@@ -103,9 +99,7 @@ async def probe_tcp_port(host: str, port: int, timeout: float) -> bool:
     باز باشد، در غیر این صورت False. هرگز استثنا پرتاب نمی‌کند.
     """
     try:
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(host, port), timeout=timeout
-        )
+        reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=timeout)
         writer.close()
         await writer.wait_closed()
         return True
@@ -153,9 +147,7 @@ class XrayProcess:
 
     def start(self) -> None:
         if self._proc is not None and self._proc.poll() is None:
-            raise ProcessAlreadyRunningError(
-                f"xray-core is already running with PID {self._proc.pid}"
-            )
+            raise ProcessAlreadyRunningError(f"xray-core is already running with PID {self._proc.pid}")
 
         try:
             self._proc = subprocess.Popen(

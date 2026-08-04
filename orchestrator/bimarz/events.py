@@ -5,8 +5,9 @@ Event system: event types, payload shape and handler signature.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from enum import Enum, auto
-from typing import Callable, TypedDict
+from typing import TypedDict
 
 
 class ConnectionEvent(Enum):

@@ -5,6 +5,7 @@ xray-core process lifecycle service.
 
 from __future__ import annotations
 
+import contextlib
 import tempfile
 from pathlib import Path
 
@@ -23,9 +24,7 @@ class ProcessService:
     ) -> None:
         self.binary_finder = binary_finder or find_xray_binary
         self.config_builder = config_builder or build_connect_config
-        self.process_factory = process_factory or (
-            lambda binary, config_path: XrayProcess(Path(binary), config_path)
-        )
+        self.process_factory = process_factory or (lambda binary, config: XrayProcess(Path(binary), Path(config)))
         self._proc: XrayProcess | None = None
         self._runtime_dir: tempfile.TemporaryDirectory | None = None
 
@@ -38,23 +37,25 @@ class ProcessService:
         binary = self.binary_finder()
         if binary is None:
             raise BinaryNotFoundError("xray-core binary not found")
-        # Matches real signature of build_connect_config (all params optional)
-        # مطابق با امضای واقعی build_connect_config (همه پارامترها اختیاری)
-        config = self.config_builder(enable_dns_guard=True)
 
-        runtime_dir = tempfile.TemporaryDirectory()
-        config_path = Path(runtime_dir.name) / "connect-runtime.json"
-        config_path.write_text(config, encoding="utf-8")
+        self._runtime_dir = tempfile.TemporaryDirectory()
+
         try:
-            config_path.chmod(0o600)
-        except Exception:
-            pass
+            config_path = Path(self._runtime_dir.name) / "connect-runtime.json"
+            config = self.config_builder(enable_dns_guard=True)
+            config_path.write_text(config, encoding="utf-8")
 
-        proc = self.process_factory(str(binary), config_path)
-        proc.start()
-        self._proc = proc
-        self._runtime_dir = runtime_dir
-        return proc
+            with contextlib.suppress(Exception):
+                config_path.chmod(0o600)
+
+            proc = self.process_factory(binary, config_path)
+            proc.start()
+            self._proc = proc
+            return proc
+
+        except Exception:
+            self._cleanup_runtime()
+            raise
 
     def stop(self) -> None:
         """Stop the running xray process if any.
@@ -63,12 +64,14 @@ class ProcessService:
         if self._proc is not None and self._proc.is_running():
             self._proc.stop()
         self._proc = None
+        self._cleanup_runtime()
 
+    def _cleanup_runtime(self) -> None:
+        """Remove the temporary runtime directory if it exists.
+        دایرکتوری runtime موقت را در صورت وجود حذف می‌کند.
+        """
         if self._runtime_dir is not None:
-            try:
-                self._runtime_dir.cleanup()
-            except Exception:
-                pass
+            self._runtime_dir.cleanup()
             self._runtime_dir = None
 
     @property

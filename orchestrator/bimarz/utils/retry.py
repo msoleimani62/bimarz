@@ -22,6 +22,7 @@ def is_retryable(exc: Exception) -> bool:
         return True
     try:
         import grpc  # type: ignore
+
         if isinstance(exc, grpc.RpcError):
             code = exc.code()
             return code in (

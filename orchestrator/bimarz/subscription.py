@@ -59,9 +59,7 @@ def parse_vless_link(link: str) -> VlessRealityOutbound:
     parsed = urlparse(link)
 
     if parsed.scheme != "vless":
-        raise UnsupportedLinkError(
-            f"expected a vless:// link, got scheme '{parsed.scheme or '(none)'}'"
-        )
+        raise UnsupportedLinkError(f"expected a vless:// link, got scheme '{parsed.scheme or '(none)'}'")
 
     if not parsed.username:
         raise MalformedLinkError("vless link is missing the UUID (userinfo) part")
@@ -83,23 +81,15 @@ def parse_vless_link(link: str) -> VlessRealityOutbound:
 
     security = get("security").lower()
     if security != "reality":
-        raise UnsupportedLinkError(
-            f"only security=reality is supported by this project, got "
-            f"'{security or '(none)'}'"
-        )
+        raise UnsupportedLinkError(f"only security=reality is supported by this project, got '{security or '(none)'}'")
 
     flow = get("flow")
     if flow != "xtls-rprx-vision":
-        raise UnsupportedLinkError(
-            f"only flow=xtls-rprx-vision is supported by this project, got "
-            f"'{flow or '(none)'}'"
-        )
+        raise UnsupportedLinkError(f"only flow=xtls-rprx-vision is supported by this project, got '{flow or '(none)'}'")
 
     public_key = get("pbk")
     if not public_key:
-        raise MalformedLinkError(
-            "vless+reality link is missing the 'pbk' (Reality public key) parameter"
-        )
+        raise MalformedLinkError("vless+reality link is missing the 'pbk' (Reality public key) parameter")
 
     remark = unquote(parsed.fragment) if parsed.fragment else parsed.hostname
 

@@ -22,23 +22,15 @@ class KillSwitchToggle(QWidget):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        self._checkbox = QCheckBox(
-            "Kill-switch"
-        )
+        self._checkbox = QCheckBox("Kill-switch")
 
-        self._checkbox.toggled.connect(
-            self._on_toggled
-        )
+        self._checkbox.toggled.connect(self._on_toggled)
 
-        layout.addWidget(
-            self._checkbox
-        )
+        layout.addWidget(self._checkbox)
 
         self._status_label = QLabel()
 
-        layout.addWidget(
-            self._status_label
-        )
+        layout.addWidget(self._status_label)
 
         layout.addStretch()
 
@@ -50,39 +42,27 @@ class KillSwitchToggle(QWidget):
 
         self._active = active
 
-        self.toggled.emit(
-            active
-        )
+        self.toggled.emit(active)
 
-        self._update_label(
-            active
-        )
+        self._update_label(active)
 
     def _update_label(self, active: bool) -> None:
         if active:
-            self._status_label.setText(
-                "armed"
-            )
+            self._status_label.setText("armed")
             self._status_label.setProperty(
                 "state",
                 "active",
             )
 
         else:
-            self._status_label.setText(
-                "inactive"
-            )
+            self._status_label.setText("inactive")
             self._status_label.setProperty(
                 "state",
                 "inactive",
             )
 
-        self._status_label.style().unpolish(
-            self._status_label
-        )
-        self._status_label.style().polish(
-            self._status_label
-        )
+        self._status_label.style().unpolish(self._status_label)
+        self._status_label.style().polish(self._status_label)
 
     def set_checked(
         self,
@@ -90,23 +70,15 @@ class KillSwitchToggle(QWidget):
     ) -> None:
         """Update state without emitting user signal."""
 
-        self._checkbox.blockSignals(
-            True
-        )
+        self._checkbox.blockSignals(True)
 
-        self._checkbox.setChecked(
-            active
-        )
+        self._checkbox.setChecked(active)
 
-        self._checkbox.blockSignals(
-            False
-        )
+        self._checkbox.blockSignals(False)
 
         self._active = active
 
-        self._update_label(
-            active
-        )
+        self._update_label(active)
 
     def is_checked(self) -> bool:
         """Return current kill-switch state."""

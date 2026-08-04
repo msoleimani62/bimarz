@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
+from contextlib import suppress
 from typing import Any, cast
 
 from bimarz.config import AppConfig
@@ -81,10 +82,8 @@ class ConnectionService:
         """
         loop = asyncio.get_running_loop()
         for sig in self._signals_registered:
-            try:
+            with suppress(NotImplementedError, RuntimeError, ValueError):
                 loop.remove_signal_handler(sig)
-            except (NotImplementedError, RuntimeError, ValueError):
-                pass
         self._signals_registered.clear()
 
     async def start(
@@ -104,7 +103,7 @@ class ConnectionService:
 
         proc = self.process_svc.start(profile)
         await self.engine_svc.connect()
-        await self.engine_svc.add_outbound(profile)
+        self.engine_svc.add_outbound(profile)
         self._emit(ConnectionEvent.ENGINE_READY)
 
         if killswitch:
@@ -144,8 +143,8 @@ class ConnectionService:
                     logger.error("No alternative profile available")
                     break
 
-                await self.engine_svc.remove_outbound()
-                await self.engine_svc.add_outbound(best)
+                self.engine_svc.remove_outbound()
+                self.engine_svc.add_outbound(best)
                 failover.trigger(best.profile_id)
                 active = best
                 self._emit(ConnectionEvent.FAILOVER_TRIGGERED, new_profile_id=best.profile_id)

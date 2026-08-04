@@ -16,9 +16,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
-from bimarz.profiles import ProfileNotFoundError, ProfileStore, WrongPasswordError
 from bimarz.models import ServerProfile
+from bimarz.profiles import ProfileNotFoundError, ProfileStore, WrongPasswordError
 
 
 def _make_profile(profile_id: str = "p1") -> ServerProfile:

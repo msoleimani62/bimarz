@@ -25,6 +25,7 @@ class AppConfig:
     نگهدارنده مرکزی تنظیمات.
     اولویت: Environment Variable > مقدار پیش‌فرض.
     """
+
     grpc_host: str = DEFAULT_GRPC_HOST
     grpc_port: int = DEFAULT_GRPC_PORT
     doctor_timeout: float = DOCTOR_GRPC_PROBE_TIMEOUT_SECONDS
@@ -44,6 +45,7 @@ class AppConfig:
         تنظیمات را از متغیرهای محیطی می‌سازد (در صورت وجود).
         در برابر مقادیر نامعتبر مقاوم است.
         """
+
         def _get_int(name: str, default: int) -> int:
             val = os.getenv(name)
             if val is None:

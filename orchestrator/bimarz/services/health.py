@@ -24,6 +24,8 @@ class HealthService:
         profiles = self.store.list_profiles()
         if not profiles:
             return []
+
         tasks = [check_profile_health(p) for p in profiles]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        return list(zip(profiles, results))
+
+        return list(zip(profiles, results, strict=True))

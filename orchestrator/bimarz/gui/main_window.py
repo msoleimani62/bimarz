@@ -64,9 +64,7 @@ class MainWindow(QMainWindow):
         left_layout = QVBoxLayout(left_panel)
 
         self._profile_table = ProfileTable()
-        self._profile_table.itemSelectionChanged.connect(
-            self._on_selection_changed
-        )
+        self._profile_table.itemSelectionChanged.connect(self._on_selection_changed)
         left_layout.addWidget(self._profile_table)
 
         button_layout = QHBoxLayout()
@@ -111,9 +109,7 @@ class MainWindow(QMainWindow):
         try:
             profiles = self._profile_store.list_profiles()
             self._profile_table.set_profiles(profiles)
-            self._status_label.setText(
-                f"Loaded {len(profiles)} profile(s)"
-            )
+            self._status_label.setText(f"Loaded {len(profiles)} profile(s)")
         except Exception as exc:
             logger.exception("Failed to load profiles")
             self._status_label.setText(f"Error loading profiles: {exc}")
@@ -136,9 +132,7 @@ class MainWindow(QMainWindow):
         self._disconnect_button.setEnabled(True)
         self._status_label.setText(f"Connecting to {profile.remark}...")
 
-        all_profiles = {
-            p.profile_id: p for p in self._profile_store.list_profiles()
-        }
+        all_profiles = {p.profile_id: p for p in self._profile_store.list_profiles()}
 
         self._connection_worker = ConnectionWorker(
             profile=profile,
@@ -146,24 +140,12 @@ class MainWindow(QMainWindow):
             enable_killswitch=self._ks_toggle.is_checked(),
         )
 
-        self._connection_worker.connected.connect(
-            self._on_worker_connected
-        )
-        self._connection_worker.disconnected.connect(
-            self._on_worker_disconnected
-        )
-        self._connection_worker.connection_error.connect(
-            self._on_worker_error
-        )
-        self._connection_worker.latency_updated.connect(
-            self._on_latency_updated
-        )
-        self._connection_worker.failover_occurred.connect(
-            self._on_failover_occurred
-        )
-        self._connection_worker.killswitch_triggered.connect(
-            self._on_killswitch_triggered
-        )
+        self._connection_worker.connected.connect(self._on_worker_connected)
+        self._connection_worker.disconnected.connect(self._on_worker_disconnected)
+        self._connection_worker.connection_error.connect(self._on_worker_error)
+        self._connection_worker.latency_updated.connect(self._on_latency_updated)
+        self._connection_worker.failover_occurred.connect(self._on_failover_occurred)
+        self._connection_worker.killswitch_triggered.connect(self._on_killswitch_triggered)
 
         self._latency_chart.clear()
         self._connection_worker.start()
@@ -193,30 +175,20 @@ class MainWindow(QMainWindow):
         QMessageBox.critical(self, "Connection Error", message)
 
     @Slot(str, float, bool)
-    def _on_latency_updated(
-        self, profile_id: str, latency_ms: float, reachable: bool
-    ) -> None:
+    def _on_latency_updated(self, profile_id: str, latency_ms: float, reachable: bool) -> None:
         if reachable and latency_ms >= 0:
             self._latency_chart.add_point(latency_ms)
 
-        self._profile_table.update_latency(
-            profile_id, latency_ms, reachable
-        )
+        self._profile_table.update_latency(profile_id, latency_ms, reachable)
 
     @Slot(str, str)
-    def _on_failover_occurred(
-        self, from_id: str, to_id: str
-    ) -> None:
-        self._status_label.setText(
-            f"Failover: {from_id} -> {to_id}"
-        )
+    def _on_failover_occurred(self, from_id: str, to_id: str) -> None:
+        self._status_label.setText(f"Failover: {from_id} -> {to_id}")
 
     @Slot(str)
     def _on_killswitch_triggered(self, reason: str) -> None:
         self._status_label.setText(f"Kill-switch: {reason}")
-        QMessageBox.warning(
-            self, "Kill-switch Triggered", reason
-        )
+        QMessageBox.warning(self, "Kill-switch Triggered", reason)
         self._connect_button.setEnabled(True)
         self._disconnect_button.setEnabled(False)
 

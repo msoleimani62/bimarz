@@ -44,8 +44,7 @@ def _render_doctor_report(report: DoctorReport) -> None:
     }.get(report.grpc_status, "white")
 
     console.print(
-        f"[{status_colour}]●[/{status_colour}] gRPC status: {report.grpc_status.value} "
-        f"at {report.grpc_endpoint}"
+        f"[{status_colour}]●[/{status_colour}] gRPC status: {report.grpc_status.value} at {report.grpc_endpoint}"
     )
 
     if report.grpc_status == GrpcStatus.unreachable:

@@ -16,7 +16,6 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-
 from bimarz.models import ServerProfile
 from bimarz.services.process import ProcessService
 from bimarz.xray_manager import BinaryNotFoundError, XrayProcess
@@ -106,4 +105,3 @@ def test_binary_not_found_raises_before_temp_creation() -> None:
     svc = ProcessService(binary_finder=lambda: None)
     with pytest.raises(BinaryNotFoundError):
         svc.start(_make_profile())
-

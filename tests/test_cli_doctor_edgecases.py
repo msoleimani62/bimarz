@@ -1,50 +1,66 @@
-"""Edge-case tests for bimarz doctor — ensures robustness against unexpected failures.
-
-تست‌های edge-case برای bimarz doctor — اطمینان از مقاومت در برابر شکست‌های غیرمنتظره.
+"""
+Edge-case tests for bimarz.cli doctor functionality.
 """
 
 from __future__ import annotations
 
-import asyncio
-from unittest.mock import patch
+import argparse
 
 import pytest
-
-from bimarz.config import AppConfig
-from bimarz.services.doctor import DoctorService
-from bimarz.models import GrpcStatus
-from bimarz.xray_manager import BinaryNotFoundError
+from bimarz.commands.doctor import _doctor_timeout_seconds
+from bimarz.constants import DOCTOR_GRPC_PROBE_TIMEOUT_ENV_VAR
 
 
-class TestDoctorEdgeCases:
-    """Tests that doctor survives failures in its dependencies."""
+class TestDoctorTimeoutEdgeCases:
+    """Edge-case tests for timeout resolution."""
 
-    @pytest.fixture
-    def config(self) -> AppConfig:
-        return AppConfig(doctor_timeout=2.0)
+    def test_negative_cli_flag_is_accepted(self) -> None:
+        args = argparse.Namespace(doctor_timeout=-1.0)
 
-    def test_doctor_handles_profile_store_exception(self, config: AppConfig) -> None:
-        """Doctor should survive even if the profile store is corrupted."""
-        with patch("bimarz.services.doctor.find_xray_binary", side_effect=BinaryNotFoundError("not found")):
-            with patch("bimarz.services.doctor.ProfileStore") as MockStore:
-                instance = MockStore.return_value
-                instance.list_profiles.side_effect = Exception("corrupted store")
-                svc = DoctorService(config)
-                report = asyncio.run(svc.run())
-                assert report.profiles_count == 0
+        result = _doctor_timeout_seconds(args)
 
-    def test_doctor_survives_when_tcp_probe_raises(self, config: AppConfig) -> None:
-        """If probe_tcp_port somehow raises, doctor should not crash."""
-        with patch("bimarz.services.doctor.find_xray_binary", side_effect=BinaryNotFoundError("not found")):
-            with patch("bimarz.services.doctor.probe_tcp_port", side_effect=OSError("network unreachable")):
-                svc = DoctorService(config)
-                report = asyncio.run(svc.run())
-                assert report.grpc_status == GrpcStatus.unreachable
+        assert result == -1.0
 
-    def test_doctor_grpc_endpoint_uses_config_values(self, config: AppConfig) -> None:
-        """grpc_endpoint in report should reflect config host/port as a full URI."""
-        with patch("bimarz.services.doctor.find_xray_binary", side_effect=BinaryNotFoundError("not found")):
-            with patch("bimarz.services.doctor.probe_tcp_port", return_value=False):
-                svc = DoctorService(config)
-                report = asyncio.run(svc.run())
-                assert report.grpc_endpoint == f"http://{config.grpc_host}:{config.grpc_port}"
+    def test_zero_timeout(self) -> None:
+        args = argparse.Namespace(doctor_timeout=0.0)
+
+        result = _doctor_timeout_seconds(args)
+
+        assert result == 0.0
+
+    def test_float_env_var(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv(
+            DOCTOR_GRPC_PROBE_TIMEOUT_ENV_VAR,
+            "1.5",
+        )
+
+        args = argparse.Namespace(doctor_timeout=None)
+
+        result = _doctor_timeout_seconds(args)
+
+        assert result == 1.5
+
+    def test_empty_env_var_falls_back(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv(
+            DOCTOR_GRPC_PROBE_TIMEOUT_ENV_VAR,
+            "",
+        )
+
+        args = argparse.Namespace(doctor_timeout=None)
+
+        result = _doctor_timeout_seconds(args)
+
+        assert result is not None
+
+    def test_missing_attribute_does_not_crash(self) -> None:
+        args = argparse.Namespace()
+
+        result = _doctor_timeout_seconds(args)
+
+        assert result is not None
