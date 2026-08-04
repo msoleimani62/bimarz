@@ -19,7 +19,7 @@ pub enum EngineError {
     #[error("xray-core gRPC call '{method}' failed with status {status}")]
     GrpcCall {
         method: &'static str,
-        status: tonic::Status,
+        status: Box<tonic::Status>,
     },
 
     #[error("invalid outbound configuration: {reason}")]

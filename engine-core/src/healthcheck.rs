@@ -34,7 +34,12 @@ pub async fn check_tcp_reachable(address: &str, port: u16, timeout_ms: u64) -> H
     let target = format!("{address}:{port}");
     let start = Instant::now();
 
-    match timeout(Duration::from_millis(timeout_ms), TcpStream::connect(&target)).await {
+    match timeout(
+        Duration::from_millis(timeout_ms),
+        TcpStream::connect(&target),
+    )
+    .await
+    {
         Ok(Ok(_stream)) => {
             let elapsed_ms = start.elapsed().as_secs_f64() * 1000.0;
             HealthCheckOutcome {

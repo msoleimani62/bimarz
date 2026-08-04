@@ -52,8 +52,8 @@ fn insert_generated_file(root: &mut BTreeMap<String, ModuleNode>, segments: &[&s
 // (e.g. "type" or "self"); this escapes them as raw identifiers (r#).
 fn safe_ident(segment: &str) -> String {
     const RESERVED: &[&str] = &[
-        "type", "self", "super", "crate", "mod", "fn", "struct", "enum", "impl", "trait",
-        "move", "match", "loop", "if", "else", "let", "const", "static", "pub", "use", "as",
+        "type", "self", "super", "crate", "mod", "fn", "struct", "enum", "impl", "trait", "move",
+        "match", "loop", "if", "else", "let", "const", "static", "pub", "use", "as",
     ];
     if RESERVED.contains(&segment) {
         format!("r#{segment}")
@@ -115,7 +115,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     find_proto_files(proto_root, &mut proto_files)?;
 
     if proto_files.is_empty() {
-        eprintln!("error: no .proto files found under {}", proto_root.display());
+        eprintln!(
+            "error: no .proto files found under {}",
+            proto_root.display()
+        );
         std::process::exit(1);
     }
 

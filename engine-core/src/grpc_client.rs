@@ -89,7 +89,7 @@ impl EngineClient {
             .await
             .map_err(|status| EngineError::GrpcCall {
                 method: "AddOutbound",
-                status,
+                status: Box::new(status),
             })?;
         Ok(())
     }
@@ -97,13 +97,15 @@ impl EngineClient {
     /// یک outbound موجود را با تگش حذف می‌کند.
     /// Removes an existing outbound by its tag.
     pub async fn remove_outbound(&mut self, tag: &str) -> EngineResult<()> {
-        let request = RemoveOutboundRequest { tag: tag.to_string() };
+        let request = RemoveOutboundRequest {
+            tag: tag.to_string(),
+        };
         self.handler
             .remove_outbound(request)
             .await
             .map_err(|status| EngineError::GrpcCall {
                 method: "RemoveOutbound",
-                status,
+                status: Box::new(status),
             })?;
         Ok(())
     }
@@ -151,14 +153,14 @@ impl EngineClient {
             name: stat_name.to_string(),
             reset: false,
         };
-        let response = self
-            .stats
-            .get_stats(request)
-            .await
-            .map_err(|status| EngineError::GrpcCall {
-                method: "GetStats",
-                status,
-            })?;
+        let response =
+            self.stats
+                .get_stats(request)
+                .await
+                .map_err(|status| EngineError::GrpcCall {
+                    method: "GetStats",
+                    status: Box::new(status),
+                })?;
 
         // اگر شمارنده هنوز وجود نداشته باشد (مثلاً هیچ ترافیکی رد نشده)،
         // xray-core ممکن است پاسخ خالی بدهد؛ صفر یک مقدار پیش‌فرض امن است.

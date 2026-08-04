@@ -4,15 +4,18 @@
 //! engine-core: the Rust layer that talks directly to xray-core's gRPC API,
 //! exposed as an importable Python module (`engine_core`).
 
+#![allow(clippy::useless_conversion)]
+mod dns_guard;
 mod errors;
 mod grpc_client;
 mod healthcheck;
-mod vless_builder;
 mod killswitch;
-mod dns_guard;
+mod vless_builder;
 
 mod pb {
     #![allow(dead_code)]
+    #![allow(clippy::module_inception)]
+    #![allow(clippy::doc_lazy_continuation)]
     include!(concat!(env!("OUT_DIR"), "/pb_tree.rs"));
 }
 
@@ -88,11 +91,7 @@ impl PyEngineClient {
         })
     }
 
-    fn get_outbound_stats<'py>(
-        &self,
-        py: Python<'py>,
-        tag: String,
-    ) -> PyResult<Bound<'py, PyAny>> {
+    fn get_outbound_stats<'py>(&self, py: Python<'py>, tag: String) -> PyResult<Bound<'py, PyAny>> {
         let mut client = self.inner.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let stats = client.get_outbound_stats(&tag).await?;
@@ -125,7 +124,12 @@ fn check_servers_health(
         let py_results: Vec<(String, bool, Option<f64>, Option<String>)> = results
             .into_iter()
             .map(|(profile_id, outcome)| {
-                (profile_id, outcome.reachable, outcome.latency_ms, outcome.error_message)
+                (
+                    profile_id,
+                    outcome.reachable,
+                    outcome.latency_ms,
+                    outcome.error_message,
+                )
             })
             .collect();
         Ok(py_results)
@@ -143,8 +147,7 @@ fn apply_killswitch_rules(interface: String, xray_uid: Option<u32>) -> PyResult<
     let ruleset = killswitch::build_killswitch_rules(&interface, xray_uid)
         .map_err(PyRuntimeError::new_err)?;
     let executor = killswitch::IptablesExecutor;
-    killswitch::apply_ruleset(&ruleset, &executor)
-        .map_err(PyRuntimeError::new_err)
+    killswitch::apply_ruleset(&ruleset, &executor).map_err(PyRuntimeError::new_err)
 }
 
 #[pyfunction]
@@ -153,8 +156,7 @@ fn remove_killswitch_rules(interface: String, xray_uid: Option<u32>) -> PyResult
     let ruleset = killswitch::build_killswitch_rules(&interface, xray_uid)
         .map_err(PyRuntimeError::new_err)?;
     let executor = killswitch::IptablesExecutor;
-    killswitch::remove_ruleset(&ruleset, &executor)
-        .map_err(PyRuntimeError::new_err)
+    killswitch::remove_ruleset(&ruleset, &executor).map_err(PyRuntimeError::new_err)
 }
 
 #[pyfunction]

@@ -121,7 +121,10 @@ mod tests {
 
     impl RuleExecutor for MockExecutor {
         fn execute(&self, command: &str) -> Result<(), String> {
-            self.executed_commands.lock().unwrap().push(command.to_string());
+            self.executed_commands
+                .lock()
+                .unwrap()
+                .push(command.to_string());
             Ok(())
         }
     }
@@ -145,7 +148,10 @@ mod tests {
         let result = build_killswitch_rules("eth0", None);
         assert!(result.is_err());
         let msg = result.unwrap_err();
-        assert!(msg.contains("xray_uid is required"), "unexpected error: {msg}");
+        assert!(
+            msg.contains("xray_uid is required"),
+            "unexpected error: {msg}"
+        );
     }
 
     #[test]

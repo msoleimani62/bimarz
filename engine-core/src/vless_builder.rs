@@ -105,7 +105,9 @@ fn build_ip_or_domain(address: &str) -> EngineResult<xray::common::net::IpOrDoma
 
 /// یک OutboundHandlerConfig کامل و آماده‌ی ارسال به add_outbound می‌سازد.
 /// Builds a complete OutboundHandlerConfig, ready to send to add_outbound.
-pub fn build_vless_reality_outbound(params: VlessRealityParams) -> EngineResult<OutboundHandlerConfig> {
+pub fn build_vless_reality_outbound(
+    params: VlessRealityParams,
+) -> EngineResult<OutboundHandlerConfig> {
     let public_key = decode_reality_public_key(&params.public_key_b64)?;
     let short_id = decode_short_id(&params.short_id_hex)?;
 
@@ -271,7 +273,10 @@ mod tests {
         // it is never removed again.
         let stream_config = sender_config.stream_settings.unwrap();
         assert_eq!(stream_config.protocol_name, "tcp");
-        assert_eq!(stream_config.security_type, "xray.transport.internet.reality.Config");
+        assert_eq!(
+            stream_config.security_type,
+            "xray.transport.internet.reality.Config"
+        );
     }
 
     #[test]
@@ -316,7 +321,12 @@ mod tests {
         let outbound = build_vless_reality_outbound(params).unwrap();
         let proxy_settings = outbound.proxy_settings.unwrap();
         let vless_outbound = VlessOutboundConfig::decode(proxy_settings.value.as_slice()).unwrap();
-        let address = vless_outbound.vnext[0].address.clone().unwrap().address.unwrap();
+        let address = vless_outbound.vnext[0]
+            .address
+            .clone()
+            .unwrap()
+            .address
+            .unwrap();
 
         match address {
             xray::common::net::ip_or_domain::Address::Domain(domain) => {
@@ -335,7 +345,12 @@ mod tests {
         let outbound = build_vless_reality_outbound(params).unwrap();
         let proxy_settings = outbound.proxy_settings.unwrap();
         let vless_outbound = VlessOutboundConfig::decode(proxy_settings.value.as_slice()).unwrap();
-        let address = vless_outbound.vnext[0].address.clone().unwrap().address.unwrap();
+        let address = vless_outbound.vnext[0]
+            .address
+            .clone()
+            .unwrap()
+            .address
+            .unwrap();
 
         match address {
             xray::common::net::ip_or_domain::Address::Ip(bytes) => {
@@ -354,7 +369,12 @@ mod tests {
         let outbound = build_vless_reality_outbound(params).unwrap();
         let proxy_settings = outbound.proxy_settings.unwrap();
         let vless_outbound = VlessOutboundConfig::decode(proxy_settings.value.as_slice()).unwrap();
-        let address = vless_outbound.vnext[0].address.clone().unwrap().address.unwrap();
+        let address = vless_outbound.vnext[0]
+            .address
+            .clone()
+            .unwrap()
+            .address
+            .unwrap();
 
         match address {
             xray::common::net::ip_or_domain::Address::Ip(bytes) => {
@@ -387,7 +407,10 @@ mod tests {
         let result = build_vless_reality_outbound(params);
         assert!(result.is_err());
         let message = result.unwrap_err().to_string();
-        assert!(message.contains("Reality public key"), "unexpected error message: {message}");
+        assert!(
+            message.contains("Reality public key"),
+            "unexpected error message: {message}"
+        );
     }
 
     #[test]
@@ -397,6 +420,9 @@ mod tests {
         let result = build_vless_reality_outbound(params);
         assert!(result.is_err());
         let message = result.unwrap_err().to_string();
-        assert!(message.contains("short_id"), "unexpected error message: {message}");
+        assert!(
+            message.contains("short_id"),
+            "unexpected error message: {message}"
+        );
     }
 }
