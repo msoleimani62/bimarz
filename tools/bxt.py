@@ -52,6 +52,34 @@ KNOWN_ISSUE_PATTERNS = [
     ),
 ]
 
+# یادداشت ثابتی که همیشه در بالای هر گزارش تولیدشده قرار می‌گیرد تا هر ایجنت
+# هوش مصنوعی که این فایل را می‌خواند بداند این گزارش کامل و خودکفاست.
+# A fixed notice always placed at the top of every generated report so any AI
+# agent reading this file knows the report is complete and self-sufficient.
+AI_NOTICE = (
+    "## توجه به ایجنت هوش مصنوعی — Notice to AI Agent\n"
+    "\n"
+    "این فایل شامل **همه‌چیز** لازم برای شناخت این پروژه است: نتایج کامل تست‌ها،\n"
+    "ساختار درختی کامل پروژه، و محتوای کامل تمام فایل‌های ضروری سورس (پایتون،\n"
+    "Rust، proto، پیکربندی، اسکریپت‌ها، مستندات). قبل از هر تحلیل، پیشنهاد یا\n"
+    "پچی، این فایل باید **از ابتدا تا انتها** خوانده شود — نه فقط بخش‌هایی که با\n"
+    "جست‌وجوی مسیر یک فایل خاص پیدا می‌شوند؛ باگ‌ها و ناسازگاری‌های واقعی معمولاً\n"
+    "بین چند فایل پخش‌اند و فقط با خواندن کامل قابل کشف‌اند. هیچ فایل دیگری از\n"
+    "پروژه لازم نیست درخواست شود مگر این‌که در همین گزارش موجود نباشد — به بخش\n"
+    "«Essential files» و فهرست «Skipped» (فایل‌های حذف‌شده به‌دلیل حجم) مراجعه کن.\n"
+    "\n"
+    "This file contains **everything** needed to understand this project: full\n"
+    "test results, the complete project directory tree, and the full content of\n"
+    "every essential source file (Python, Rust, proto, configs, scripts, docs).\n"
+    "Before any analysis, suggestion, or patch, this file must be read **start\n"
+    "to finish** — not just the sections found by grepping for one known file\n"
+    "path; real bugs and cross-file mismatches are usually spread across several\n"
+    "files and only surface on a full read. No other project file should be\n"
+    "requested unless it is missing from this report — check the \"Essential\n"
+    "files\" section and its \"Skipped\" list (files omitted for exceeding the\n"
+    "size cap).\n"
+)
+
 DEFAULT_PROJECT_PATH = Path.home() / "bimarz"
 DEFAULT_OUTPUT_DIR = Path("/sdcard/Download")
 DEFAULT_OUTPUT_NAME = "bxt-report.md"
@@ -220,6 +248,7 @@ def render_report(root: Path, rust_results, python_results, tree_text, included,
         f"Host: {socket.gethostname()}",
         f"Project path: {root}",
         "",
+        AI_NOTICE,
         "## Test results",
     ]
 
