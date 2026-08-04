@@ -71,16 +71,15 @@ class DoctorService:
         t = timeout or self.config.doctor_timeout
         host = self.config.grpc_host
         port = self.config.grpc_port
-        report.grpc_endpoint = f"{host}:{port}"
+        report.grpc_endpoint = f"http://{host}:{port}"
 
         tcp_ok = await probe_tcp_port(host, port, timeout=t)
         if not tcp_ok:
             report.grpc_status = GrpcStatus.unreachable
         else:
             try:
-                engine_class = get_engine_client_class()
-                engine = engine_class()
-                grpc_ok = await probe_grpc_with_engine(engine, timeout=t)
+                endpoint = f"http://{host}:{port}"
+                grpc_ok = await probe_grpc_with_engine(endpoint, timeout=t)
                 report.grpc_status = (
                     GrpcStatus.responding if grpc_ok else GrpcStatus.listening
                 )
