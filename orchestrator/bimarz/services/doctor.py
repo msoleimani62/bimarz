@@ -62,8 +62,12 @@ class DoctorService:
         except BinaryNotFoundError:
             report.xray_binary_found = False
 
-        store = ProfileStore()
-        report.profiles_count = len(store.list_profiles())
+        try:
+            store = ProfileStore()
+            report.profiles_count = len(store.list_profiles())
+        except Exception as exc:
+            logger.debug("Profile store read failed: %s", exc)
+            report.profiles_count = 0
 
         ks = KillSwitchManager()
         report.killswitch_active = ks.state.active
@@ -73,7 +77,12 @@ class DoctorService:
         port = self.config.grpc_port
         report.grpc_endpoint = f"http://{host}:{port}"
 
-        tcp_ok = await probe_tcp_port(host, port, timeout=t)
+        try:
+            tcp_ok = await probe_tcp_port(host, port, timeout=t)
+        except Exception as exc:
+            logger.debug("TCP probe failed: %s", exc)
+            tcp_ok = False
+
         if not tcp_ok:
             report.grpc_status = GrpcStatus.unreachable
         else:
