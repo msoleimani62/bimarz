@@ -5,6 +5,9 @@ xray-core process lifecycle service.
 
 from __future__ import annotations
 
+import tempfile
+from pathlib import Path
+
 from bimarz.models import ServerProfile
 from bimarz.protocols import BinaryFinder, ConfigBuilder, ProcessFactory
 from bimarz.xray_config import build_connect_config
@@ -21,9 +24,10 @@ class ProcessService:
         self.binary_finder = binary_finder or find_xray_binary
         self.config_builder = config_builder or build_connect_config
         self.process_factory = process_factory or (
-            lambda binary, config: XrayProcess(binary, config)
+            lambda binary, config_path: XrayProcess(Path(binary), config_path)
         )
         self._proc: XrayProcess | None = None
+        self._runtime_dir: tempfile.TemporaryDirectory | None = None
 
     def start(self, profile: ServerProfile) -> XrayProcess:
         """Start xray-core process for the given profile.
@@ -37,9 +41,19 @@ class ProcessService:
         # Matches real signature of build_connect_config (all params optional)
         # مطابق با امضای واقعی build_connect_config (همه پارامترها اختیاری)
         config = self.config_builder(enable_dns_guard=True)
-        proc = self.process_factory(str(binary), config)
+
+        runtime_dir = tempfile.TemporaryDirectory()
+        config_path = Path(runtime_dir.name) / "connect-runtime.json"
+        config_path.write_text(config, encoding="utf-8")
+        try:
+            config_path.chmod(0o600)
+        except Exception:
+            pass
+
+        proc = self.process_factory(str(binary), config_path)
         proc.start()
         self._proc = proc
+        self._runtime_dir = runtime_dir
         return proc
 
     def stop(self) -> None:
@@ -49,6 +63,13 @@ class ProcessService:
         if self._proc is not None and self._proc.is_running():
             self._proc.stop()
         self._proc = None
+
+        if self._runtime_dir is not None:
+            try:
+                self._runtime_dir.cleanup()
+            except Exception:
+                pass
+            self._runtime_dir = None
 
     @property
     def process(self) -> XrayProcess | None:
