@@ -35,7 +35,7 @@ def detect_default_interface() -> str:
     """
     route_path = Path("/proc/net/route")
     if not route_path.exists():
-        # Non-Linux or restricted environment – let KillSwitchManager resolve
+        # Non-Linux or restricted environment - let KillSwitchManager resolve
         return "auto"
 
     try:
@@ -338,7 +338,7 @@ class ConnectionWorker(QThread):
                 reason=f"{manager.threshold} consecutive failures",
             )
         except Exception:
-            logger.exception("Failed updating failover state – rolling back outbound")
+            logger.exception("Failed updating failover state - rolling back outbound")
             with suppress(Exception):
                 await remove_outbound(ACTIVE_OUTBOUND_TAG)
             with suppress(Exception):

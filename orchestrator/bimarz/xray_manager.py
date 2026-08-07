@@ -99,7 +99,7 @@ async def probe_tcp_port(host: str, port: int, timeout: float) -> bool:
     باز باشد، در غیر این صورت False. هرگز استثنا پرتاب نمی‌کند.
     """
     try:
-        reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=timeout)
+        _, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=timeout)
         writer.close()
         await writer.wait_closed()
         return True

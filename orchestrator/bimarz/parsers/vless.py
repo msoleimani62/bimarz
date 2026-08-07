@@ -1,11 +1,11 @@
 """
 VLESS share-link parser.
-پارسر لینک اشتراک VLESS.
 """
 
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 from typing import TypedDict
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -44,77 +44,107 @@ class VlessOutbound(TypedDict, total=False):
 
 
 def parse_vless_link(link: str) -> ServerProfile:
-    """Parse a VLESS share link into a ServerProfile.
-    یک لینک اشتراک VLESS را به ServerProfile تبدیل می‌کند.
-    """
+    """Parse a VLESS share link into a ServerProfile."""
     link = link.strip()
-    if not link.startswith("vless://"):
-        raise ValueError("Only vless:// links are supported")
+
+    if not link:
+        raise ValueError("VLESS link cannot be empty")
 
     parsed = urlparse(link)
+
+    if parsed.scheme != "vless":
+        raise ValueError("Only vless:// links are supported")
+
     if not parsed.hostname:
         raise ValueError("Invalid VLESS link: missing host")
 
-    raw_uuid = unquote(parsed.username or "")
+    raw_uuid = unquote(parsed.username or "").strip()
+
     if not raw_uuid:
         raise ValueError("Invalid VLESS link: missing UUID")
 
     try:
-        uuid.UUID(raw_uuid)
+        parsed_uuid = uuid.UUID(raw_uuid)
     except ValueError as exc:
         raise ValueError(f"Invalid UUID in VLESS link: {raw_uuid}") from exc
 
-    port = parsed.port or 443
-    query = parse_qs(parsed.query)
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("Invalid port in VLESS link") from exc
 
-    def _q(key: str, default: str = "") -> str:
-        vals = query.get(key)
-        return vals[0] if vals else default
+    if port is None:
+        port = 443
+    elif not 1 <= port <= 65535:
+        raise ValueError(f"Invalid port in VLESS link: {port}")
 
-    def _qb(key: str, default: bool = False) -> bool:
-        val = _q(key, "").lower()
-        if val in ("1", "true", "yes", "on"):
+    query = parse_qs(parsed.query, keep_blank_values=True)
+
+    def get_query_value(key: str, default: str = "") -> str:
+        """Return the first query value or a default."""
+        values = query.get(key)
+
+        if not values:
+            return default
+
+        return unquote(values[0])
+
+    def get_bool_query_value(key: str, default: bool = False) -> bool:
+        """Return a normalized boolean query value."""
+        value = get_query_value(key).strip().lower()
+
+        if value in {"1", "true", "yes", "on"}:
             return True
-        if val in ("0", "false", "no", "off"):
+
+        if value in {"0", "false", "no", "off"}:
             return False
+
         return default
 
-    name = unquote(parsed.fragment) if parsed.fragment else f"{parsed.hostname}:{port}"
+    hostname = parsed.hostname
+    sni = get_query_value("sni") or get_query_value("host")
+
+    name = unquote(parsed.fragment).strip()
+    if not name:
+        name = f"{hostname}:{port}"
+
     profile_id = uuid.uuid4().hex
 
     outbound: VlessOutbound = {
         "protocol": "vless",
-        "address": parsed.hostname or "",
+        "address": hostname,
         "port": port,
-        "id": raw_uuid,
-        "flow": _q("flow", "xtls-rprx-vision"),
-        "security": _q("security", "reality"),
-        "sni": _q("sni", _q("host", "")),
-        "fp": _q("fp", "chrome"),
-        "publicKey": _q("pbk", ""),
-        "shortId": _q("sid", ""),
-        "spiderX": _q("spx", ""),
-        "encryption": _q("encryption", "none"),
-        "type": _q("type", "tcp"),
-        "path": _q("path", ""),
-        "host": _q("host", ""),
-        "serviceName": _q("serviceName", ""),
-        "authority": _q("authority", ""),
-        "mode": _q("mode", ""),
-        "alpn": _q("alpn", ""),
-        "headerType": _q("headerType", ""),
-        "seed": _q("seed", ""),
-        "packetEncoding": _q("packetEncoding", ""),
-        "fragment": _q("fragment", ""),
-        "mux": _q("mux", ""),
-        "allowInsecure": _qb("allowInsecure", False),
-        "ech": _q("ech", ""),
-        "echForceQuery": _q("echForceQuery", ""),
-        "pqv": _q("pqv", ""),
+        "id": str(parsed_uuid),
+        "flow": get_query_value("flow", "xtls-rprx-vision"),
+        "security": get_query_value("security", "reality"),
+        "sni": sni,
+        "fp": get_query_value("fp", "chrome"),
+        "publicKey": get_query_value("pbk"),
+        "shortId": get_query_value("sid"),
+        "spiderX": get_query_value("spx"),
+        "encryption": get_query_value("encryption", "none"),
+        "type": get_query_value("type", "tcp"),
+        "path": get_query_value("path"),
+        "host": get_query_value("host"),
+        "serviceName": get_query_value("serviceName"),
+        "authority": get_query_value("authority"),
+        "mode": get_query_value("mode"),
+        "alpn": get_query_value("alpn"),
+        "headerType": get_query_value("headerType"),
+        "seed": get_query_value("seed"),
+        "packetEncoding": get_query_value("packetEncoding"),
+        "fragment": get_query_value("fragment"),
+        "mux": get_query_value("mux"),
+        "allowInsecure": get_bool_query_value("allowInsecure"),
+        "ech": get_query_value("ech"),
+        "echForceQuery": get_query_value("echForceQuery"),
+        "pqv": get_query_value("pqv"),
     }
 
     return ServerProfile(
         profile_id=profile_id,
-        name=name,
-        outbound=dict(outbound),
+        tag=profile_id,
+        remark=name,
+        outbound_config=dict(outbound),
+        added_at_iso=datetime.now(timezone.utc).isoformat(),
     )

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from typing import Any
 
 from bimarz.constants import ENGINE_CONNECT_MAX_RETRIES, ENGINE_CONNECT_RETRY_DELAY
 from bimarz.protocols import EngineClient
@@ -35,6 +36,15 @@ def is_retryable(exc: Exception) -> bool:
     return False
 
 
+async def _attempt_once(engine_client_class: type, endpoint: str) -> tuple[Any, None] | tuple[None, Exception]:
+    """Single connection attempt. Returns (client, None) on success or (None, exc) on failure."""
+    try:
+        client = await engine_client_class.connect(endpoint)
+        return client, None
+    except Exception as exc:
+        return None, exc
+
+
 async def connect_with_retry(
     engine_client_class: type,
     endpoint: str,
@@ -46,16 +56,16 @@ async def connect_with_retry(
     """
     last_exc: Exception | None = None
     for attempt in range(1, max_retries + 1):
-        try:
-            return await engine_client_class.connect(endpoint)
-        except Exception as exc:
-            if is_retryable(exc):
-                last_exc = exc
-                logger.debug("Engine connect attempt %d/%d failed: %s", attempt, max_retries, exc)
-                if attempt < max_retries:
-                    await asyncio.sleep(delay)
-                continue
-            raise
+        client, exc = await _attempt_once(engine_client_class, endpoint)
+        if exc is None:
+            return client
+        if is_retryable(exc):
+            last_exc = exc
+            logger.debug("Engine connect attempt %d/%d failed: %s", attempt, max_retries, exc)
+            if attempt < max_retries:
+                await asyncio.sleep(delay)
+            continue
+        raise exc
     if last_exc is not None:
         raise last_exc
     raise RuntimeError("Failed to connect to engine after retries")

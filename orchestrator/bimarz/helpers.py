@@ -1,6 +1,5 @@
 """
 Small stateless helper functions shared across services and commands.
-توابع کمکی کوچک و بدون‌حالت که بین سرویس‌ها و دستورات مشترک هستند.
 """
 
 from __future__ import annotations
@@ -13,62 +12,66 @@ from bimarz.models import ServerProfile
 
 
 def get_current_uid() -> int | None:
-    """Return current user UID when available.
-    شناسه کاربری فعلی را در صورت وجود برمی‌گرداند.
-    """
-    if hasattr(os, "getuid"):
-        return os.getuid()
-    return None
+    """Return the current process UID when supported."""
+    # Return the current user ID when supported by the operating system.
+    getuid = getattr(os, "getuid", None)
+
+    if getuid is None:
+        return None
+
+    return getuid()
 
 
 def get_outbound(profile: ServerProfile) -> dict[str, Any]:
-    """Return the raw outbound dict stored on a profile.
-    دیکشنری خام outbound ذخیره‌شده روی پروفایل را برمی‌گرداند.
-    """
-    return getattr(profile, "outbound", None) or {}
+    """Return the raw outbound configuration stored on a profile."""
+    # Normalize missing or invalid outbound data to an empty mapping.
+    outbound = getattr(profile, "outbound_config", None)
+
+    if not isinstance(outbound, dict):
+        return {}
+
+    return outbound
 
 
 def format_profile_address(profile: ServerProfile) -> str:
-    """Return a display-friendly address for a profile.
-    آدرس مناسب برای نمایش پروفایل را برمی‌گرداند.
-    """
-    outbound = get_outbound(profile)
-    return str(outbound.get("address", "?"))
+    """Return a display-friendly address for a profile."""
+    # Provide a stable fallback when the outbound address is unavailable.
+    address = get_outbound(profile).get("address")
+
+    return str(address) if address else "?"
 
 
 def outbound_kwargs(profile: ServerProfile) -> dict[str, Any]:
-    """Build the kwargs expected by add_vless_reality_outbound.
-    kwargs مورد نیاز add_vless_reality_outbound را می‌سازد.
-    """
+    """Build arguments expected by add_vless_reality_outbound."""
+    # Normalize the values required by the Rust outbound builder.
     outbound = get_outbound(profile)
+
+    raw_port = outbound.get("port", 443)
+
+    try:
+        port = int(raw_port)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Invalid outbound port: {raw_port!r}") from exc
+
+    if not 1 <= port <= 65535:
+        raise ValueError(f"Outbound port out of range: {port}")
+
     return {
         "tag": ACTIVE_OUTBOUND_TAG,
-        "address": outbound.get("address", ""),
-        "port": int(outbound.get("port", 443)),
-        "id": outbound.get("id", ""),
-        "flow": outbound.get("flow", "xtls-rprx-vision"),
-        "security": outbound.get("security", "reality"),
-        "sni": outbound.get("sni", ""),
-        "fp": outbound.get("fp", "chrome"),
-        "pbk": outbound.get("publicKey", ""),
-        "sid": outbound.get("shortId", ""),
-        "spx": outbound.get("spiderX", ""),
-        "network": outbound.get("type", "tcp"),
-        "path": outbound.get("path", ""),
-        "serviceName": outbound.get("serviceName", ""),
-        "authority": outbound.get("authority", ""),
-        "mode": outbound.get("mode", ""),
-        "alpn": outbound.get("alpn", ""),
-        "packetEncoding": outbound.get("packetEncoding", ""),
-        "fragment": outbound.get("fragment", ""),
-        "mux": outbound.get("mux", ""),
-        "allowInsecure": outbound.get("allowInsecure", False),
-        "ech": outbound.get("ech", ""),
+        "uuid": str(outbound.get("id", "")),
+        "flow": str(outbound.get("flow", "xtls-rprx-vision")),
+        "address": str(outbound.get("address", "")),
+        "port": port,
+        "network": str(outbound.get("type", "tcp")),
+        "sni": str(outbound.get("sni", "")),
+        "fingerprint": str(outbound.get("fp", "chrome")),
+        "public_key_b64": str(outbound.get("publicKey", "")),
+        "short_id_hex": str(outbound.get("shortId", "")),
+        "spider_x": str(outbound.get("spiderX", "")),
     }
 
 
 def profiles_by_id(profiles: list[ServerProfile]) -> dict[str, ServerProfile]:
-    """Index a list of profiles by their profile_id.
-    فهرست پروفایل‌ها را بر اساس profile_id ایندکس می‌کند.
-    """
-    return {p.profile_id: p for p in profiles}
+    """Index profiles by profile_id."""
+    # Build a direct lookup table for efficient profile retrieval.
+    return {profile.profile_id: profile for profile in profiles}

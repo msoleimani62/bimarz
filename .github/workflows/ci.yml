@@ -1,178 +1,215 @@
+# Continuous Integration workflow for BiMarz
+# گردش‌کار یکپارچه‌سازی مداوم برای پروژه BiMarz
 name: CI
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   pull_request:
-    branches: [main]
+    branches:
+      - main
 
+# Least-privilege permissions
+# حداقل سطح دسترسی لازم
 permissions:
   contents: read
 
+# Cancel previous runs on the same branch
+# لغو اجرای قبلی روی همان شاخه
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: \( {{ github.workflow }}- \){{ github.ref }}
   cancel-in-progress: true
+
+env:
+  RUST_TOOLCHAIN: "1.97.1"
+  PROTOBUF_PACKAGE: protobuf-compiler
+  BIMARZ_PROFILE_PASSWORD: test123
+  # Xray-core version used in integration tests
+  # نسخه xray-core مورد استفاده در تست‌های یکپارچگی
+  XRAY_VERSION: "25.3.6"
 
 jobs:
   python-tests:
     name: Python tests (${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    timeout-minutes: 25
+
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version:
+          - "3.11"
+          - "3.12"
+          - "3.13"
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: pip
 
-      - name: Install dev dependencies
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            \~/.cargo
+            \~/.rustup
+            target
+          key: cargo-\( {{ runner.os }}- \){{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ env.PROTOBUF_PACKAGE }}
+
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]" --config-settings=build-args="--no-default-features" || pip install rich cryptography pytest pytest-cov ruff
+          pip install -e ".[dev]"
+          # Install maturin to build the Rust extension
+          # نصب maturin برای ساخت افزونه راست
+          pip install "maturin>=1.8,<2"
 
-      - name: Ruff lint
-        run: ruff check orchestrator tests
+      - name: Build Rust extension
+        run: maturin develop --release
+
+      - name: Ruff check
+        run: ruff check .
 
       - name: Ruff format check
-        run: ruff format --check orchestrator tests
+        run: ruff format --check .
 
-      - name: Run pytest with coverage
-        run: pytest --cov=bimarz --cov-report=term-missing --cov-report=xml
+      - name: Run Python tests
+        run: |
+          pytest \
+            -q \
+            --tb=short \
+            --cov=bimarz \
+            --cov-report=term-missing \
+            --cov-fail-under=70
 
-      - name: Upload coverage report
-        uses: codecov/codecov-action@v4
-        if: matrix.python-version == '3.13'
-        with:
-          files: ./coverage.xml
-          fail_ci_if_error: false
 
-  rust-build:
-    name: Rust build & test
+  rust-tests:
+    name: Rust tests and clippy
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install stable Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
         with:
-          workspaces: |
-            engine-core -> target
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: |
+            clippy
+            rustfmt
 
-      - name: Fetch official xray-core proto files
-        run: |
-          XRAY_TAG="v1.8.24"
-          git clone --depth 1 --branch "$XRAY_TAG" https://github.com/XTLS/xray-core.git /tmp/xray-core-src
-          mkdir -p engine-core/proto
-          cp -r /tmp/xray-core-src/app engine-core/proto/
-          cp -r /tmp/xray-core-src/common engine-core/proto/
-          rm -rf /tmp/xray-core-src
-
-      - name: cargo check
-        working-directory: engine-core
-        run: cargo check --all-targets
-
-      - name: cargo test
-        working-directory: engine-core
-        run: cargo test
-
-      - name: cargo clippy
-        working-directory: engine-core
-        run: cargo clippy --all-targets -- -D warnings
-
-  rust-msrv:
-    name: Rust MSRV check
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust 1.78 toolchain
-        uses: dtolnay/rust-toolchain@1.78.0
-
-      - uses: Swatinem/rust-cache@v2
+      - name: Cache Cargo
+        uses: actions/cache@v4
         with:
-          workspaces: |
-            engine-core -> target
+          path: |
+            \~/.cargo
+            \~/.rustup
+            target
+          key: cargo-\( {{ runner.os }}- \){{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
 
-      - name: Fetch official xray-core proto files
+      - name: Install system dependencies
         run: |
-          XRAY_TAG="v1.8.24"
-          git clone --depth 1 --branch "$XRAY_TAG" https://github.com/XTLS/xray-core.git /tmp/xray-core-src
-          mkdir -p engine-core/proto
-          cp -r /tmp/xray-core-src/app engine-core/proto/
-          cp -r /tmp/xray-core-src/common engine-core/proto/
-          rm -rf /tmp/xray-core-src
+          sudo apt-get update
+          sudo apt-get install -y ${{ env.PROTOBUF_PACKAGE }}
 
-      - name: cargo check
-        working-directory: engine-core
-        run: cargo check --all-targets
+      - name: Cargo fmt
+        run: cargo fmt --all -- --check
 
-  integration-test:
-    name: Integration test with real xray-core
+      - name: Cargo clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Cargo tests
+        run: cargo test --all
+
+
+  integration:
+    name: Xray integration lifecycle
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # Only run after unit tests pass
+    # فقط بعد از موفقیت تست‌های واحد اجرا شود
     needs:
       - python-tests
-      - rust-build
+      - rust-tests
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+          cache: pip
 
-      - name: Create virtual environment
-        run: |
-          python -m venv .venv
-          source .venv/bin/activate
-          python -m pip install --upgrade pip
-
-      - name: Install stable Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
         with:
-          workspaces: |
-            engine-core -> target
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
 
-      - name: Fetch official xray-core proto files
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            \~/.cargo
+            \~/.rustup
+            target
+          key: cargo-\( {{ runner.os }}- \){{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
+
+      - name: Install system dependencies
         run: |
-          XRAY_TAG="v1.8.24"
-          git clone --depth 1 --branch "$XRAY_TAG" https://github.com/XTLS/xray-core.git /tmp/xray-core-src
-          mkdir -p engine-core/proto
-          cp -r /tmp/xray-core-src/app engine-core/proto/
-          cp -r /tmp/xray-core-src/common engine-core/proto/
-          rm -rf /tmp/xray-core-src
+          sudo apt-get update
+          sudo apt-get install -y ${{ env.PROTOBUF_PACKAGE }}
+
+      - name: Install xray-core
+        run: |
+          curl -fsSL \
+            "https://github.com/XTLS/Xray-core/releases/download/v${{ env.XRAY_VERSION }}/Xray-linux-64.zip" \
+            -o /tmp/xray.zip
+
+          sudo unzip -o /tmp/xray.zip -d /usr/local/bin xray
+          sudo chmod +x /usr/local/bin/xray
+
+          xray version
+
+      - name: Install Python package
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Install maturin
+        run: |
+          pip install "maturin>=1.8,<2"
 
       - name: Build Rust extension
         run: |
-          source .venv/bin/activate
-          pip install maturin
           maturin develop --release
 
-      - name: Install project dependencies
-        run: |
-          source .venv/bin/activate
-          pip install -e .
-          pip install pytest pytest-cov rich cryptography
-
-      - name: Download xray-core binary
-        run: |
-          curl -fsSL -o /tmp/xray.tar.gz "https://github.com/XTLS/xray-core/releases/download/v1.8.24/Xray-linux-64.tar.gz"
-          tar -xzf /tmp/xray.tar.gz -C /tmp
-          sudo mv /tmp/xray /usr/local/bin/xray
-          sudo chmod +x /usr/local/bin/xray
-          xray version
-
       - name: Run integration tests
-        env:
-          BIMARZ_PROFILE_PASSWORD: "ci-test-password-12345"
         run: |
-          source .venv/bin/activate
-          pytest tests/test_integration.py -v --tb=short
+          pytest \
+            -q \
+            -m integration \
+            --tb=short

@@ -103,11 +103,39 @@ fn build_ip_or_domain(address: &str) -> EngineResult<xray::common::net::IpOrDoma
     })
 }
 
+// قرارداد API: ورودی‌های نامعتبر قبل از ساختن protobuf رد می‌شوند.
+// API contract: invalid inputs are rejected before building protobuf.
+fn validate_params(params: &VlessRealityParams) -> EngineResult<()> {
+    if params.tag.is_empty() {
+        return Err(EngineError::InvalidOutboundConfig {
+            reason: "outbound tag must not be empty".to_string(),
+        });
+    }
+    if params.uuid.is_empty() {
+        return Err(EngineError::InvalidOutboundConfig {
+            reason: "uuid must not be empty".to_string(),
+        });
+    }
+    if params.address.is_empty() {
+        return Err(EngineError::InvalidOutboundConfig {
+            reason: "address must not be empty".to_string(),
+        });
+    }
+    if params.port == 0 || params.port > 65535 {
+        return Err(EngineError::InvalidOutboundConfig {
+            reason: format!("port must be between 1 and 65535, got {}", params.port),
+        });
+    }
+    Ok(())
+}
+
 /// یک OutboundHandlerConfig کامل و آماده‌ی ارسال به add_outbound می‌سازد.
 /// Builds a complete OutboundHandlerConfig, ready to send to add_outbound.
 pub fn build_vless_reality_outbound(
     params: VlessRealityParams,
 ) -> EngineResult<OutboundHandlerConfig> {
+    validate_params(&params)?;
+
     let public_key = decode_reality_public_key(&params.public_key_b64)?;
     let short_id = decode_short_id(&params.short_id_hex)?;
 
@@ -424,5 +452,57 @@ mod tests {
             message.contains("short_id"),
             "unexpected error message: {message}"
         );
+    }
+
+    // تست‌های قرارداد API: ورودی نامعتبر باید رد شود.
+    // API contract tests: invalid inputs must be rejected.
+    #[test]
+    fn empty_tag_is_rejected() {
+        let mut params = sample_params();
+        params.tag = String::new();
+        let result = build_vless_reality_outbound(params);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("tag"), "unexpected error: {msg}");
+    }
+
+    #[test]
+    fn empty_uuid_is_rejected() {
+        let mut params = sample_params();
+        params.uuid = String::new();
+        let result = build_vless_reality_outbound(params);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("uuid"), "unexpected error: {msg}");
+    }
+
+    #[test]
+    fn empty_address_is_rejected() {
+        let mut params = sample_params();
+        params.address = String::new();
+        let result = build_vless_reality_outbound(params);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("address"), "unexpected error: {msg}");
+    }
+
+    #[test]
+    fn zero_port_is_rejected() {
+        let mut params = sample_params();
+        params.port = 0;
+        let result = build_vless_reality_outbound(params);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("port"), "unexpected error: {msg}");
+    }
+
+    #[test]
+    fn port_too_high_is_rejected() {
+        let mut params = sample_params();
+        params.port = 65536;
+        let result = build_vless_reality_outbound(params);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("port"), "unexpected error: {msg}");
     }
 }

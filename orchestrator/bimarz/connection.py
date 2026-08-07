@@ -70,11 +70,14 @@ class ConnectionService:
         """
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGTERM, signal.SIGHUP):
-            try:
-                loop.add_signal_handler(sig, self._stop_event.set)
-                self._signals_registered.append(sig)
-            except (NotImplementedError, RuntimeError) as exc:
-                logger.debug("Signal handler unavailable for %s: %s", sig, exc)
+            self._try_register_signal(loop, sig)
+
+    def _try_register_signal(self, loop: asyncio.AbstractEventLoop, sig: signal.Signals) -> None:
+        try:
+            loop.add_signal_handler(sig, self._stop_event.set)
+            self._signals_registered.append(sig)
+        except (NotImplementedError, RuntimeError) as exc:
+            logger.debug("Signal handler unavailable for %s: %s", sig, exc)
 
     def _unregister_signals(self) -> None:
         """Remove previously registered signal handlers.

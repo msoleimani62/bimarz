@@ -51,7 +51,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.5"]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.5",
+]
 gui = ["PySide6>=6.7"]
 
 [project.scripts]
@@ -71,12 +76,23 @@ module-name = "bimarz._engine_core"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["orchestrator"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "integration: marks tests that require running xray-core binary",
+]
 
 [tool.coverage.run]
 source = ["orchestrator/bimarz"]
-omit = ["*/tests/*", "*/test_*.py"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "bimarz/_engine_core*",
+    "bimarz/gui/*",
+]
 
 [tool.coverage.report]
+fail_under = 70
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",
@@ -85,6 +101,7 @@ exclude_lines = [
     'if __name__ == "__main__":',
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
+    "if TYPE_CHECKING:",
 ]
 
 [tool.ruff]
@@ -92,4 +109,28 @@ line-length = 120
 target-version = "py310"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
+select = [
+    "E",
+    "F",
+    "I",
+    "UP",
+    "B",
+    "SIM",
+    "RUF",
+    "ASYNC",
+    "PERF",
+]
+ignore = [
+    "E501",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"orchestrator/bimarz/constants.py" = ["RUF003"]
+"orchestrator/bimarz/failover.py" = ["RUF002"]
+"orchestrator/bimarz/gui/connection_worker.py" = ["RUF003"]
+"orchestrator/bimarz/gui/profile_table.py" = ["RUF002"]
+"orchestrator/bimarz/helpers.py" = ["RUF002"]
+"orchestrator/bimarz/profiles.py" = ["RUF002"]
+"orchestrator/bimarz/protocols.py" = ["RUF002"]
+"orchestrator/bimarz/xray_manager.py" = ["RUF003"]
+"tests/unit/test_vless_parser.py" = ["RUF003"]

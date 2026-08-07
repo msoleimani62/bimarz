@@ -760,8 +760,7 @@ def render_report(
             ]
         )
 
-        for item in detected:
-            parts.append(f"- {item}")
+        parts.extend(f"- {item}" for item in detected)
 
         parts.append("")
 
