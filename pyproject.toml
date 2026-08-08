@@ -87,8 +87,8 @@ source = ["orchestrator/bimarz"]
 omit = [
     "*/tests/*",
     "*/test_*.py",
-    "bimarz/_engine_core*",
-    "bimarz/gui/*",
+    "orchestrator/bimarz/_engine_core*",
+    "orchestrator/bimarz/gui/*",
 ]
 
 [tool.coverage.report]
@@ -134,3 +134,4 @@ ignore = [
 "orchestrator/bimarz/protocols.py" = ["RUF002"]
 "orchestrator/bimarz/xray_manager.py" = ["RUF003"]
 "tests/unit/test_vless_parser.py" = ["RUF003"]
+"tests/test_integration_xray.py" = ["RUF002", "RUF003"]

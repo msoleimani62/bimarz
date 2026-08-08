@@ -21,13 +21,16 @@ mod pb {
 
 use errors::EngineError;
 use grpc_client::EngineClient;
-use pyo3::exceptions::PyRuntimeError;
+use pyo3::exceptions::{PyConnectionError, PyRuntimeError};
 use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;
 
 impl From<EngineError> for PyErr {
     fn from(err: EngineError) -> PyErr {
-        PyRuntimeError::new_err(err.to_string())
+        match err {
+            EngineError::GrpcConnect { .. } => PyConnectionError::new_err(err.to_string()),
+            err => PyRuntimeError::new_err(err.to_string()),
+        }
     }
 }
 
