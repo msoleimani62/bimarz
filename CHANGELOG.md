@@ -8,11 +8,27 @@ This file follows the [Keep a Changelog](https://keepachangelog.com/) format.
 ### Added — افزوده شد
 
 - `docs/INSTALL.md`: step-by-step bilingual installation guide for non-technical users.
+- `.github/workflows/security.yml`: scheduled dependency security auditing for Rust and Python dependencies using `cargo-audit` and `pip-audit`.
 
 ### Changed — تغییر یافت
 
-- `README.md`: roadmap synced to actual project state (phases 0–5 complete, 6 in progress, 7–8 not started); architecture diagram updated to reflect modular cli.py refactor.
-- `scripts/build-release.sh`: added `cargo clippy` check before build, added maturin version validation.
+- `README.md`: roadmap synced to the actual project state, with phases 0–5 complete, phase 6 in progress, and phases 7–8 not started; architecture documentation updated to reflect the modular `cli.py` refactor.
+- `scripts/build-release.sh`: added a `cargo clippy` validation step before building and added maturin version validation.
+- `tests/test_integration.py`: removed two obsolete skipped integration tests that no longer represent the supported project scope or provide unique coverage.
+  - Removed `test_add_and_remove_outbound_via_grpc`, which referenced the unsupported `add_freedom_outbound` API.
+  - Removed `test_get_stats_on_existing_direct_outbound`, which was flaky and duplicated coverage already provided by `tests/test_integration_xray.py`.
+
+### Security — امنیت
+
+- Added scheduled dependency auditing to the GitHub Actions CI pipeline as part of phase 6.
+- Rust dependencies are audited with `cargo-audit`.
+- Installed Python dependencies are audited with `pip-audit`.
+
+### Testing — تست
+
+- Preserved existing integration assertions and active test coverage while removing only obsolete skipped tests.
+- No public API was changed as part of the phase 6 test and CI cleanup.
+- No runtime dependency was added to the project; `cargo-audit` and `pip-audit` are CI-only security tooling.
 
 ## [0.2.0] — 2026-08-03
 

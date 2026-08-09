@@ -130,53 +130,6 @@ def test_grpc_api_responds(
     asyncio.run(probe())
 
 
-@pytest.mark.skip(reason="PyEngineClient does not expose add_freedom_outbound; use add_vless_reality_outbound instead")
-def test_add_and_remove_outbound_via_grpc(
-    running_xray: XrayProcess,
-) -> None:
-    outbound_tag = "integration-test-outbound"
-
-    async def lifecycle() -> None:
-        client = await connect_client()
-
-        await client.add_freedom_outbound(
-            tag=outbound_tag,
-        )
-
-        stats = await client.get_outbound_stats(
-            outbound_tag,
-        )
-
-        assert stats[0] == outbound_tag
-
-        await client.remove_outbound(
-            outbound_tag,
-        )
-
-        with pytest.raises(RuntimeError):
-            await client.get_outbound_stats(
-                outbound_tag,
-            )
-
-    asyncio.run(lifecycle())
-
-
-@pytest.mark.skip(reason="xray-core transport error in CI environment; gRPC stats endpoint unstable")
-def test_get_stats_on_existing_direct_outbound(
-    running_xray: XrayProcess,
-) -> None:
-    async def query_stats() -> tuple:
-        client = await connect_client()
-
-        return await client.get_outbound_stats(
-            "direct",
-        )
-
-    result = asyncio.run(query_stats())
-
-    assert result[0] == "direct"
-
-
 def test_multiple_grpc_connections(
     running_xray: XrayProcess,
 ) -> None:
