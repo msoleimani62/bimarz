@@ -50,6 +50,9 @@ class DoctorService:
 
         try:
             found_path = find_xray_binary(xray_bin) if xray_bin else find_xray_binary()
+            if found_path is None:
+                raise BinaryNotFoundError("xray-core binary not found")
+
             report.xray_binary_path = str(found_path)
             report.xray_binary_found = True
             try:

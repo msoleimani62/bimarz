@@ -198,3 +198,103 @@ def test_service_active_id_follows_manager() -> None:
     service.trigger("p9", reason="test")
 
     assert service.active_id == "p9"
+
+
+def test_best_alternative_is_deterministic_when_latencies_match() -> None:
+    manager = FailoverManager(active_profile_id="p1")
+
+    results = {
+        "p3": build_health_result("p3", True, 50.0),
+        "p2": build_health_result("p2", True, 50.0),
+    }
+
+    assert manager.pick_best_alternative(results) == "p2"
+
+
+def test_trigger_failover_returns_event() -> None:
+    manager = FailoverManager(active_profile_id="p1")
+
+    event = manager.trigger_failover("p2", reason="manual")
+
+    assert event.from_profile_id == "p1"
+    assert event.to_profile_id == "p2"
+    assert manager.active_profile_id == "p2"
+
+
+def test_failure_counter_does_not_change_for_other_profile() -> None:
+    manager = FailoverManager(
+        active_profile_id="p1",
+        consecutive_failure_threshold=2,
+    )
+
+    manager.record_active_profile_result(build_health_result("p2", False))
+
+    assert manager.consecutive_failures == 0
+    assert manager.should_failover() is False
+
+
+def test_success_after_threshold_failure_cancels_failover() -> None:
+    manager = FailoverManager(
+        active_profile_id="p1",
+        consecutive_failure_threshold=2,
+    )
+
+    manager.record_active_profile_result(build_health_result("p1", False))
+    manager.record_active_profile_result(build_health_result("p1", False))
+
+    assert manager.should_failover() is True
+
+    manager.record_active_profile_result(build_health_result("p1", True, 20.0))
+
+    assert manager.consecutive_failures == 0
+    assert manager.should_failover() is False
+
+
+def test_no_failover_target_when_only_active_profile_is_healthy() -> None:
+    manager = FailoverManager(active_profile_id="p1")
+
+    results = {
+        "p1": build_health_result("p1", True, 10.0),
+    }
+
+    assert manager.pick_best_alternative(results) is None
+
+
+def test_manager_rejects_empty_active_profile() -> None:
+    import pytest
+
+    with pytest.raises(ValueError, match="active_profile_id"):
+        FailoverManager(active_profile_id="")
+
+
+def test_manager_rejects_invalid_threshold() -> None:
+    import pytest
+
+    with pytest.raises(ValueError, match="at least 1"):
+        FailoverManager(
+            active_profile_id="p1",
+            consecutive_failure_threshold=0,
+        )
+
+
+def test_trigger_failover_rejects_same_profile() -> None:
+    import pytest
+
+    manager = FailoverManager(active_profile_id="p1")
+
+    with pytest.raises(ValueError, match="active profile"):
+        manager.trigger_failover(
+            "p1",
+            reason="invalid",
+        )
+
+
+def test_best_alternative_uses_profile_id_as_deterministic_tiebreaker() -> None:
+    manager = FailoverManager(active_profile_id="p1")
+
+    results = {
+        "p3": build_health_result("p3", True, 50.0),
+        "p2": build_health_result("p2", True, 50.0),
+    }
+
+    assert manager.pick_best_alternative(results) == "p2"

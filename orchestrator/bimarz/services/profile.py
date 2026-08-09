@@ -1,5 +1,6 @@
 """
 Server-profile management service.
+
 سرویس مدیریت پروفایل‌های سرور.
 """
 
@@ -11,12 +12,19 @@ from bimarz.profiles import ProfileStore
 
 
 class ProfileService:
-    def __init__(self, store: ProfileStore | None = None) -> None:
+    def __init__(
+        self,
+        store: ProfileStore | None = None,
+    ) -> None:
         self.store = store or ProfileStore()
 
-    def add_from_link(self, link: str) -> ServerProfile:
-        """Parse a VLESS link and persist the resulting profile.
-        لینک VLESS را پارس کرده و پروفایل را ذخیره می‌کند.
+    def add_from_link(
+        self,
+        link: str,
+    ) -> ServerProfile:
+        """Parse and persist a VLESS profile.
+
+        لینک VLESS را parse و ذخیره می‌کند.
         """
         profile = parse_vless_link(link)
         self.store.add_profile(profile)
@@ -25,8 +33,14 @@ class ProfileService:
     def list_profiles(self) -> list[ServerProfile]:
         return self.store.list_profiles()
 
-    def remove(self, profile_id: str) -> None:
+    def remove(
+        self,
+        profile_id: str,
+    ) -> None:
         self.store.remove_profile(profile_id)
 
-    def get(self, profile_id: str) -> ServerProfile | None:
+    def get(
+        self,
+        profile_id: str,
+    ) -> ServerProfile:
         return self.store.get_profile(profile_id)

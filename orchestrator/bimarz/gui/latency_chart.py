@@ -49,12 +49,12 @@ class LatencyChart(QWidget):
 
             self._chart.addAxis(
                 self._axis_x,
-                Qt.AlignBottom,
+                Qt.AlignmentFlag.AlignBottom,
             )
 
             self._chart.addAxis(
                 self._axis_y,
-                Qt.AlignLeft,
+                Qt.AlignmentFlag.AlignLeft,
             )
 
             self._series.attachAxis(self._axis_x)
@@ -65,7 +65,7 @@ class LatencyChart(QWidget):
 
         else:
             self._fallback_label = QLabel("Latency chart unavailable")
-            self._fallback_label.setAlignment(Qt.AlignCenter)
+            self._fallback_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self._layout.addWidget(self._fallback_label)
 
     @Slot(float)

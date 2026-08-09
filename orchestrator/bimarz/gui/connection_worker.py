@@ -1,4 +1,5 @@
-"""QThread wrapper around the async connect orchestration.
+"""
+QThread wrapper around the async connect orchestration.
 
 پوشش QThread دور orchestration async اتصال.
 """
@@ -18,6 +19,7 @@ from typing import Any
 
 from PySide6.QtCore import QObject, QThread, Signal
 
+from bimarz.constants import DEFAULT_GRPC_ENDPOINT
 from bimarz.engine import EngineNotBuiltError
 from bimarz.failover import FailoverManager, check_all_profiles, check_profile_health
 from bimarz.killswitch_manager import KillSwitchManager, KillSwitchTriggeredError
@@ -36,6 +38,7 @@ def detect_default_interface() -> str:
     route_path = Path("/proc/net/route")
     if not route_path.exists():
         # Non-Linux or restricted environment - let KillSwitchManager resolve
+        # محیط غیرلینوکس یا محدود - اجازه می‌دهیم KillSwitchManager تصمیم بگیرد.
         return "auto"
 
     try:
@@ -61,6 +64,7 @@ def detect_default_interface() -> str:
         "tun0",
         "utun0",
     ]
+
     for name in candidates:
         if Path(f"/sys/class/net/{name}").exists():
             return name
@@ -252,7 +256,10 @@ class ConnectionWorker(QThread):
     ) -> None:
         client_class = get_engine_client_class()
 
-        self._client = await connect_with_retry(client_class)
+        self._client = await connect_with_retry(
+            client_class,
+            DEFAULT_GRPC_ENDPOINT,
+        )
 
         if self._client is None:
             raise RuntimeError("Engine client was not created.")
@@ -313,7 +320,11 @@ class ConnectionWorker(QThread):
             return
 
         remove_outbound = getattr(self._client, "remove_outbound", None)
-        add_outbound = getattr(self._client, "add_vless_reality_outbound", None)
+        add_outbound = getattr(
+            self._client,
+            "add_vless_reality_outbound",
+            None,
+        )
 
         if not callable(remove_outbound) or not callable(add_outbound):
             return
@@ -344,8 +355,6 @@ class ConnectionWorker(QThread):
             with suppress(Exception):
                 await add_outbound(**old_kwargs)
             return
-
-        manager.active_profile_id = next_id
 
         self.failover_occurred.emit(
             event.from_profile_id or "unknown",

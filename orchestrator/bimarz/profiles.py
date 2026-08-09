@@ -18,11 +18,14 @@ allowed to exit).
 from __future__ import annotations
 
 import base64
+import contextlib
 import getpass
 import json
 import os
+import tempfile
 from dataclasses import asdict
 from pathlib import Path
+from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
@@ -37,111 +40,234 @@ _PASSWORD_ENV_VAR = "BIMARZ_PROFILE_PASSWORD"
 
 
 class ProfileStoreError(Exception):
-    """Base class for every profile-store error.
+    """Base error for profile storage.
 
-    کلاس پایه برای تمام خطاهای فروشگاه پروفایل.
+    Base error for profile storage.
     """
 
 
 class WrongPasswordError(ProfileStoreError):
-    """Raised when the stored profiles cannot be decrypted with the given
-    password (wrong password, or the file is corrupted).
+    """Raised when profile data cannot be decrypted.
 
-    زمانی پرتاب می‌شود که پروفایل‌های ذخیره‌شده با پسورد داده‌شده قابل
-    رمزگشایی نیستند (پسورد اشتباه، یا فایل خراب است).
+    Raised when profile data cannot be decrypted.
     """
 
 
 class ProfileNotFoundError(ProfileStoreError):
-    """Raised when removing or looking up a profile_id that doesn't exist.
+    """Raised when a profile does not exist.
 
-    زمانی پرتاب می‌شود که profile_id ای برای حذف یا جستجو داده شده که
-    وجود ندارد.
+    Raised when a profile does not exist.
     """
 
 
-def _derive_key(password: str, salt: bytes) -> bytes:
+def _derive_key(
+    password: str,
+    salt: bytes,
+) -> bytes:
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=32,
         salt=salt,
         iterations=_PBKDF2_ITERATIONS,
     )
-    return base64.urlsafe_b64encode(kdf.derive(password.encode("utf-8")))
+    return base64.urlsafe_b64encode(
+        kdf.derive(password.encode("utf-8")),
+    )
 
 
 def _prompt_for_password() -> str:
     env_password = os.environ.get(_PASSWORD_ENV_VAR)
+
     if env_password:
         return env_password
+
     return getpass.getpass("Profile store password: ")
 
 
 class ProfileStore:
-    """Encrypted CRUD store for server profiles, backed by a single JSON
-    file on disk (see constants.PROFILES_FILE). The first password used
-    against a fresh (non-existent) file becomes that file's password;
-    every later open must use the same one.
+    """Encrypted CRUD store backed by a JSON file.
 
-    فروشگاه رمزنگاری‌شده‌ی CRUD برای پروفایل‌های سرور، بر پایه‌ی یک فایل
-    JSON واحد روی دیسک (نگاه کنید به constants.PROFILES_FILE). اولین
-    پسوردی که روی یک فایل تازه (ناموجود) استفاده شود، پسورد آن فایل
-    می‌شود؛ هر بار باز کردن بعدی باید همان را استفاده کند.
+    Encrypted CRUD store backed by a JSON file.
     """
 
-    def __init__(self, path: Path = PROFILES_FILE, password: str | None = None) -> None:
+    def __init__(
+        self,
+        path: Path = PROFILES_FILE,
+        password: str | None = None,
+    ) -> None:
         self._path = path
         self._password = password if password is not None else _prompt_for_password()
 
-    def _read_encrypted_state(self) -> tuple[str, dict]:
+        if not self._password:
+            raise ProfileStoreError(
+                "profile store password must not be empty",
+            )
+
+    def _read_encrypted_state(
+        self,
+    ) -> tuple[str, dict[str, Any]]:
         if not self._path.exists():
-            fresh_salt = base64.urlsafe_b64encode(os.urandom(_SALT_SIZE_BYTES)).decode("ascii")
+            fresh_salt = base64.urlsafe_b64encode(
+                os.urandom(_SALT_SIZE_BYTES),
+            ).decode("ascii")
             return fresh_salt, {}
 
-        raw = json.loads(self._path.read_text(encoding="utf-8"))
-        salt = base64.urlsafe_b64decode(raw["salt"])
-        key = _derive_key(self._password, salt)
-        fernet = Fernet(key)
         try:
-            decrypted = fernet.decrypt(raw["ciphertext"].encode("ascii"))
+            raw = json.loads(
+                self._path.read_text(encoding="utf-8"),
+            )
+
+            salt_b64 = raw["salt"]
+            ciphertext = raw["ciphertext"]
+
+            salt = base64.urlsafe_b64decode(salt_b64)
+            key = _derive_key(self._password, salt)
+
+            fernet = Fernet(key)
+            decrypted = fernet.decrypt(
+                ciphertext.encode("ascii"),
+            )
+
+            profiles = json.loads(
+                decrypted.decode("utf-8"),
+            )
+
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise ProfileStoreError(
+                "profile store contains invalid data",
+            ) from exc
         except InvalidToken as exc:
             raise WrongPasswordError(
-                "could not decrypt the profile store: wrong password, or the file is corrupted"
+                "could not decrypt the profile store: wrong password, or the file is corrupted",
             ) from exc
 
-        profiles = json.loads(decrypted.decode("utf-8"))
-        return raw["salt"], profiles
+        if not isinstance(profiles, dict):
+            raise ProfileStoreError(
+                "profile store payload must be a mapping",
+            )
 
-    def _write_encrypted_state(self, salt_b64: str, profiles: dict) -> None:
+        return salt_b64, profiles
+
+    def _write_encrypted_state(
+        self,
+        salt_b64: str,
+        profiles: dict[str, Any],
+    ) -> None:
         salt = base64.urlsafe_b64decode(salt_b64)
         key = _derive_key(self._password, salt)
         fernet = Fernet(key)
-        ciphertext = fernet.encrypt(json.dumps(profiles).encode("utf-8"))
 
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(
-            json.dumps({"salt": salt_b64, "ciphertext": ciphertext.decode("ascii")}, indent=2),
-            encoding="utf-8",
+        plaintext = json.dumps(
+            profiles,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+
+        ciphertext = fernet.encrypt(plaintext).decode("ascii")
+
+        payload = json.dumps(
+            {
+                "salt": salt_b64,
+                "ciphertext": ciphertext,
+            },
+            ensure_ascii=False,
+            indent=2,
         )
+
+        self._path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        fd, temp_name = tempfile.mkstemp(
+            prefix=f".{self._path.name}.",
+            dir=self._path.parent,
+            text=True,
+        )
+
+        try:
+            os.fchmod(fd, 0o600)
+
+            with os.fdopen(
+                fd,
+                "w",
+                encoding="utf-8",
+            ) as temp_file:
+                temp_file.write(payload)
+                temp_file.flush()
+                os.fsync(temp_file.fileno())
+
+            os.replace(temp_name, self._path)
+
+            directory_fd = os.open(
+                self._path.parent,
+                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+            )
+
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+
+        except Exception:
+            with contextlib.suppress(OSError):
+                os.close(fd)
+
+            with contextlib.suppress(OSError):
+                os.unlink(temp_name)
+
+            raise
+
+        with contextlib.suppress(OSError):
+            os.chmod(self._path, 0o600)
 
     def list_profiles(self) -> list[ServerProfile]:
         _salt, profiles = self._read_encrypted_state()
+
         return [ServerProfile(**data) for data in profiles.values()]
 
-    def get_profile(self, profile_id: str) -> ServerProfile:
+    def get_profile(
+        self,
+        profile_id: str,
+    ) -> ServerProfile:
         _salt, profiles = self._read_encrypted_state()
-        if profile_id not in profiles:
-            raise ProfileNotFoundError(f"no profile with id '{profile_id}'")
-        return ServerProfile(**profiles[profile_id])
 
-    def add_profile(self, profile: ServerProfile) -> None:
+        if profile_id not in profiles:
+            raise ProfileNotFoundError(
+                f"no profile with id '{profile_id}'",
+            )
+
+        return ServerProfile(
+            **profiles[profile_id],
+        )
+
+    def add_profile(
+        self,
+        profile: ServerProfile,
+    ) -> None:
         salt, profiles = self._read_encrypted_state()
+
         profiles[profile.profile_id] = asdict(profile)
-        self._write_encrypted_state(salt, profiles)
 
-    def remove_profile(self, profile_id: str) -> None:
+        self._write_encrypted_state(
+            salt,
+            profiles,
+        )
+
+    def remove_profile(
+        self,
+        profile_id: str,
+    ) -> None:
         salt, profiles = self._read_encrypted_state()
+
         if profile_id not in profiles:
-            raise ProfileNotFoundError(f"no profile with id '{profile_id}'")
+            raise ProfileNotFoundError(
+                f"no profile with id '{profile_id}'",
+            )
+
         del profiles[profile_id]
-        self._write_encrypted_state(salt, profiles)
+
+        self._write_encrypted_state(
+            salt,
+            profiles,
+        )

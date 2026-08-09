@@ -1,10 +1,12 @@
 """
 Protocol definitions used for dependency injection across services.
-تعاریف Protocol که برای تزریق وابستگی در سرویس‌ها استفاده می‌شوند.
+
+تعاریف Protocol برای تزریق وابستگی بین سرویس‌ها.
 """
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -12,25 +14,45 @@ from bimarz.xray_manager import XrayProcess
 
 
 class EngineClient(Protocol):
-    """Protocol matching the gRPC engine client surface used by services.
-    پروتکل مطابق با سطح کلاینت gRPC که در سرویس‌ها استفاده می‌شود.
+    """Protocol for the asynchronous gRPC engine client.
+
+    پروتکل کلاینت asynchronous موتور gRPC.
     """
 
-    def add_vless_reality_outbound(self, **kwargs: Any) -> None: ...
-    def remove_outbound(self, tag: str) -> None: ...
+    @classmethod
+    async def connect(cls, endpoint: str) -> EngineClient: ...
+
+    async def add_vless_reality_outbound(
+        self,
+        **kwargs: Any,
+    ) -> Any: ...
+
+    async def remove_outbound(
+        self,
+        tag: str,
+    ) -> Any: ...
+
+    async def get_outbound_stats(
+        self,
+        tag: str,
+    ) -> Any: ...
+
+    async def close(self) -> Any: ...
 
 
 class BinaryFinder(Protocol):
     """Protocol for locating the xray-core binary.
-    پروتکل برای پیدا کردن باینری xray-core.
+
+    پروتکل پیدا کردن باینری xray-core.
     """
 
     def __call__(self) -> Path | str | None: ...
 
 
 class ConfigBuilder(Protocol):
-    """Protocol matching the real signature of build_connect_config.
-    پروتکل مطابق با امضای واقعی build_connect_config.
+    """Protocol for building xray configuration.
+
+    پروتکل ساخت تنظیمات xray.
     """
 
     def __call__(
@@ -42,8 +64,36 @@ class ConfigBuilder(Protocol):
 
 
 class ProcessFactory(Protocol):
-    """Protocol for creating an XrayProcess instance.
-    پروتکل برای ساخت نمونه XrayProcess.
+    """Protocol for creating an XrayProcess.
+
+    پروتکل ساخت XrayProcess.
     """
 
-    def __call__(self, binary: Path | str, config: Path) -> XrayProcess: ...
+    def __call__(
+        self,
+        binary: Path | str,
+        config: Path,
+    ) -> XrayProcess: ...
+
+
+HealthCheckFunction = Callable[
+    [str, int, int],
+    Awaitable[tuple[bool, float | None, str | None]],
+]
+
+BatchHealthCheckFunction = Callable[
+    [
+        list[tuple[str, str, int]],
+        int,
+    ],
+    Awaitable[
+        list[
+            tuple[
+                str,
+                bool,
+                float | None,
+                str | None,
+            ]
+        ]
+    ],
+]

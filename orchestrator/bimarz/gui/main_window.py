@@ -56,7 +56,7 @@ class MainWindow(QMainWindow):
 
         main_layout = QHBoxLayout(central)
 
-        splitter = QSplitter(Qt.Horizontal)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
         main_layout.addWidget(splitter)
 
         # Left panel: profile list + controls

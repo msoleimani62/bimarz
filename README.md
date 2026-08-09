@@ -5,8 +5,8 @@
 
 [فارسی](#فارسی) | [English](#english)
 
-> ⚠️ **وضعیت فعلی پروژه:** فازهای **۰ تا ۵ از ۸** نقشه راه کامل و به‌صورت end-to-end روی سخت‌افزار واقعی تایید شده‌اند. فاز ۶ (تست و CI کامل) در حال انجام است. فازهای ۷ (GUI دسکتاپ) و ۸ (اپ اندروید) هنوز شروع نشده‌اند. جزئیات کامل در بخش «وضعیت و نقشه راه».
-> ⚠️ **Current project status:** phases **0 through 5 of 8** on the roadmap are complete and verified end-to-end on real hardware. Phase 6 (full test suite & CI) is in progress. Phases 7 (Desktop GUI) and 8 (Android app) are not started yet. Full details in the "Status & Roadmap" section below.
+> ⚠️ **وضعیت فعلی پروژه:** فازهای **۰ تا ۵ از ۸** نقشه راه کامل و به‌صورت end-to-end روی سخت‌افزار واقعی تایید شده‌اند. فاز ۶ (تست و CI کامل) در حال انجام است. فاز ۷ (GUI دسکتاپ) شروع شده و اسکلت اولیه‌ی PySide6 پیاده‌سازی شده است. فاز ۸ (اپ اندروید) هنوز شروع نشده است. جزئیات کامل در بخش «وضعیت و نقشه راه».
+> ⚠️ **Current project status:** phases **0 through 5 of 8** on the roadmap are complete and verified end-to-end on real hardware. Phase 6 (full test suite & CI) is in progress. Phase 7 (Desktop GUI) has started and the initial PySide6 skeleton is implemented. Phase 8 (Android app) is not started yet. Full details in the "Status & Roadmap" section below.
 
 ---
 
@@ -72,7 +72,7 @@
 | ۴ | Kill-switch و ضدنشت DNS | ✅ کامل | `bimarz killswitch`، software fallback در Termux |
 | ۵ | تکمیل CLI و بسته‌بندی | ✅ کامل | doctor لایه‌ای، release workflow، build script، refactor ماژولار cli.py |
 | ۶ | تست و CI کامل | 🚧 در حال انجام | CI پایه آماده (ruff+pytest+cargo)، integration test با xray-core واقعی در حال تکمیل |
-| ۷ | رابط گرافیکی دسکتاپ | ⏳ شروع نشده | PySide6، فقط لایه نمایش، بدون تکرار منطق |
+| ۷ | رابط گرافیکی دسکتاپ | 🚧 شروع شده | PySide6، فقط لایه نمایش، بدون تکرار منطق |
 | ۸ | اپ اندروید | ⏳ شروع نشده | Kotlin + uniffi-rs، بدون fork منطق engine |
 
 جزئیات فنی هر تغییر در [`CHANGELOG.md`](./CHANGELOG.md) ثبت می‌شود.
@@ -241,7 +241,7 @@ Full architectural reasoning, and real bugs found and fixed during development (
 | 4 | Kill-switch & DNS leak guard | ✅ Complete | `bimarz killswitch`, software fallback on Termux |
 | 5 | CLI polish & packaging | ✅ Complete | Layered doctor, release workflow, build script, modular cli.py refactor |
 | 6 | Full test suite & CI | 🚧 In progress | Base CI ready (ruff+pytest+cargo), real xray-core integration test being finalized |
-| 7 | Desktop GUI | ⏳ Not started | PySide6, display layer only, no logic duplication |
+| 7 | Desktop GUI | 🚧 Started | PySide6, display layer only, no logic duplication |
 | 8 | Android app | ⏳ Not started | Kotlin + uniffi-rs, no engine logic fork |
 
 Every technical change is logged in [`CHANGELOG.md`](./CHANGELOG.md).

@@ -1,4 +1,5 @@
-"""QTableWidget showing saved server profiles with live latency.
+"""
+QTableWidget showing saved server profiles with live latency.
 
 جدول QTableWidget برای نمایش پروفایل‌های سرور ذخیره‌شده با latency زنده.
 """
@@ -8,7 +9,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Final
 
 from PySide6.QtGui import QBrush, QColor
-from PySide6.QtWidgets import QHeaderView, QTableWidget, QTableWidgetItem
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QHeaderView,
+    QTableWidget,
+    QTableWidgetItem,
+)
 
 if TYPE_CHECKING:
     from bimarz.models import ServerProfile
@@ -31,17 +37,17 @@ class ProfileTable(QTableWidget):
         self.setColumnCount(4)
         self.setHorizontalHeaderLabels(["Remark", "Address", "Latency", "Status"])
 
-        self.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.horizontalHeader().setSectionResizeMode(
             self._COLUMN_LATENCY,
-            QHeaderView.ResizeToContents,
+            QHeaderView.ResizeMode.ResizeToContents,
         )
 
         self.verticalHeader().hide()
 
-        self.setSelectionBehavior(QTableWidget.SelectRows)
-        self.setSelectionMode(QTableWidget.SingleSelection)
-        self.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
 
         self.setAlternatingRowColors(True)
         self.setSortingEnabled(True)

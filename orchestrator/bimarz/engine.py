@@ -21,6 +21,8 @@ import asyncio
 import inspect
 from contextlib import suppress
 
+from bimarz.protocols import EngineClient
+
 
 class EngineNotBuiltError(Exception):
     """Raised when the compiled Rust extension cannot be imported.
@@ -29,7 +31,7 @@ class EngineNotBuiltError(Exception):
     """
 
 
-def get_engine_client_class():
+def get_engine_client_class() -> type[EngineClient]:
     """Returns the PyEngineClient class from the compiled Rust extension.
 
     Imported lazily (inside a function, not at module load time) so that
