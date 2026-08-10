@@ -5,12 +5,13 @@ build-backend = "maturin"
 [project]
 name = "bimarz"
 version = "0.2.0"
-description = "Cross-platform orchestrator around xray-core (VLESS+Reality+Vision) with health-check, failover, kill-switch and DNS leak protection"
+description = "Cross-platform Xray-core orchestrator with VLESS, Reality, Vision, health checks, failover, kill switch, and DNS leak protection"
 readme = "README.md"
-license = { text = "MIT" }
 requires-python = ">=3.10"
-authors = [{ name = "msoleimani62" }]
-
+license = { text = "MIT" }
+authors = [
+    { name = "msoleimani62" },
+]
 keywords = [
     "xray",
     "xray-core",
@@ -23,17 +24,17 @@ keywords = [
     "privacy",
     "security",
 ]
-
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
     "Intended Audience :: End Users/Desktop",
     "Intended Audience :: System Administrators",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
-    "Operating System :: MacOS",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -44,22 +45,22 @@ classifiers = [
     "Topic :: System :: Networking",
     "Typing :: Typed",
 ]
-
 dependencies = [
-    "rich>=13.7",
     "cryptography>=42.0",
+    "rich>=13.7",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0",
-    "pytest-cov>=5.0",
-    "pytest-asyncio>=0.24",
-    "ruff>=0.5",
     "mypy>=1.13",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=5.0",
+    "ruff>=0.5",
+]
+gui = [
     "PySide6>=6.7",
 ]
-gui = ["PySide6>=6.7"]
 
 [project.scripts]
 bimarz = "bimarz.cli:main"
@@ -76,16 +77,26 @@ python-source = "orchestrator"
 module-name = "bimarz._engine_core"
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["orchestrator"]
+testpaths = [
+    "tests",
+]
+pythonpath = [
+    "orchestrator",
+]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+addopts = [
+    "-ra",
+]
 markers = [
     "integration: marks tests that require running xray-core binary",
 ]
 
 [tool.coverage.run]
-source = ["orchestrator/bimarz"]
+branch = true
+source = [
+    "orchestrator/bimarz",
+]
 omit = [
     "*/tests/*",
     "*/test_*.py",
@@ -95,6 +106,8 @@ omit = [
 
 [tool.coverage.report]
 fail_under = 70
+show_missing = true
+skip_covered = false
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",
@@ -107,8 +120,8 @@ exclude_lines = [
 ]
 
 [tool.ruff]
-line-length = 120
 target-version = "py310"
+line-length = 120
 
 [tool.ruff.lint]
 select = [

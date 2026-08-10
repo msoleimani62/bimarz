@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any
 
 
 class Environment(str, Enum):
@@ -23,20 +24,20 @@ class Environment(str, Enum):
 
 
 class GrpcStatus(str, Enum):
-    """Three-level gRPC health status for `bimarz doctor`.
+    """Four-level gRPC health status for `bimarz doctor`.
 
-    سه سطح وضعیت سلامت gRPC برای `bimarz doctor`.
+    چهار سطح وضعیت سلامت gRPC برای `bimarz doctor`.
     """
 
-    not_checked = "not_checked"
-    unreachable = "unreachable"
-    listening = "listening"
-    responding = "responding"
+    NOT_CHECKED = "not_checked"
+    UNREACHABLE = "unreachable"
+    LISTENING = "listening"
+    RESPONDING = "responding"
 
-    NOT_CHECKED = not_checked
-    UNREACHABLE = unreachable
-    LISTENING = listening
-    RESPONDING = responding
+    not_checked = NOT_CHECKED
+    unreachable = UNREACHABLE
+    listening = LISTENING
+    responding = RESPONDING
 
 
 @dataclass(frozen=True)
@@ -70,7 +71,7 @@ class ServerProfile:
     profile_id: str
     tag: str
     remark: str
-    outbound_config: dict
+    outbound_config: dict[str, Any]
     added_at_iso: str
 
 

@@ -20,7 +20,11 @@ from bimarz.commands.killswitch import (
     run_killswitch_enable,
     run_killswitch_status,
 )
-from bimarz.commands.profile import run_profile_add, run_profile_list, run_profile_remove
+from bimarz.commands.profile import (
+    run_profile_add,
+    run_profile_list,
+    run_profile_remove,
+)
 from bimarz.config import AppConfig
 from bimarz.constants import BIMARZ_VERSION
 
@@ -28,69 +32,164 @@ console = Console()
 
 
 def _build_parser() -> argparse.ArgumentParser:
+    """Build and configure the complete command-line parser.
+
+    ساخت و پیکربندی کامل parser خط فرمان.
+    """
     parser = argparse.ArgumentParser(
         prog="bimarz",
         description="Professional management layer for xray-core.",
     )
-    parser.add_argument("--version", action="version", version=f"%(prog)s {BIMARZ_VERSION}")
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {BIMARZ_VERSION}",
+    )
     parser.add_argument(
         "--debug",
         action="store_true",
         help="Show full technical traceback and enable DEBUG logging.",
     )
 
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(
+        dest="command",
+        required=True,
+    )
 
-    doctor_parser = subparsers.add_parser("doctor", help="Full environment check.")
-    doctor_parser.add_argument("--xray-bin", type=str, default=None)
-    doctor_parser.add_argument("--doctor-timeout", type=float, default=None)
+    doctor_parser = subparsers.add_parser(
+        "doctor",
+        help="Run a full environment check.",
+    )
+    doctor_parser.add_argument(
+        "--xray-bin",
+        type=str,
+        default=None,
+        help="Path to the xray-core binary.",
+    )
+    doctor_parser.add_argument(
+        "--doctor-timeout",
+        type=float,
+        default=None,
+        help="Override the doctor gRPC timeout in seconds.",
+    )
     doctor_parser.set_defaults(func=run_doctor)
 
-    profile_parser = subparsers.add_parser("profile", help="Manage server profiles.")
-    profile_sub = profile_parser.add_subparsers(dest="profile_command", required=True)
+    profile_parser = subparsers.add_parser(
+        "profile",
+        help="Manage server profiles.",
+    )
+    profile_sub = profile_parser.add_subparsers(
+        dest="profile_command",
+        required=True,
+    )
 
-    p_add = profile_sub.add_parser("add", help="Add a profile from a VLESS share link.")
-    p_add.add_argument("link", type=str)
-    p_add.set_defaults(func=run_profile_add)
+    profile_add = profile_sub.add_parser(
+        "add",
+        help="Add a profile from a VLESS share link.",
+    )
+    profile_add.add_argument(
+        "link",
+        type=str,
+        help="VLESS share link.",
+    )
+    profile_add.set_defaults(func=run_profile_add)
 
-    p_list = profile_sub.add_parser("list", help="List saved profiles.")
-    p_list.set_defaults(func=run_profile_list)
+    profile_list = profile_sub.add_parser(
+        "list",
+        help="List saved profiles.",
+    )
+    profile_list.set_defaults(func=run_profile_list)
 
-    p_remove = profile_sub.add_parser("remove", help="Remove a profile by ID.")
-    p_remove.add_argument("profile_id", type=str)
-    p_remove.set_defaults(func=run_profile_remove)
+    profile_remove = profile_sub.add_parser(
+        "remove",
+        help="Remove a profile by ID.",
+    )
+    profile_remove.add_argument(
+        "profile_id",
+        type=str,
+        help="Profile identifier.",
+    )
+    profile_remove.set_defaults(func=run_profile_remove)
 
-    hc = subparsers.add_parser("healthcheck", help="Check all profiles in parallel.")
-    hc.set_defaults(func=run_healthcheck)
+    healthcheck = subparsers.add_parser(
+        "healthcheck",
+        help="Check all profiles in parallel.",
+    )
+    healthcheck.set_defaults(func=run_healthcheck)
 
-    conn = subparsers.add_parser("connect", help="Connect using a profile.")
-    conn.add_argument("profile_id", type=str)
-    conn.add_argument("--auto-failover", action="store_true")
-    conn.add_argument("--killswitch", action="store_true")
-    conn.set_defaults(func=run_connect)
+    connect = subparsers.add_parser(
+        "connect",
+        help="Connect using a saved profile.",
+    )
+    connect.add_argument(
+        "profile_id",
+        type=str,
+        help="Profile identifier.",
+    )
+    connect.add_argument(
+        "--auto-failover",
+        action="store_true",
+        help="Enable automatic failover on connection failure.",
+    )
+    connect.add_argument(
+        "--killswitch",
+        action="store_true",
+        help="Enable the kill-switch for the connection.",
+    )
+    connect.set_defaults(func=run_connect)
 
-    ks = subparsers.add_parser("killswitch", help="Manage kill-switch independently.")
-    ks_sub = ks.add_subparsers(dest="ks_command", required=True)
+    killswitch = subparsers.add_parser(
+        "killswitch",
+        help="Manage the kill-switch independently.",
+    )
+    killswitch_sub = killswitch.add_subparsers(
+        dest="ks_command",
+        required=True,
+    )
 
-    ks_en = ks_sub.add_parser("enable", help="Enable kill-switch.")
-    ks_en.add_argument("--interface", type=str, default="tun0")
-    ks_en.add_argument("--xray-uid", type=int, default=None)
-    ks_en.set_defaults(func=run_killswitch_enable)
+    killswitch_enable = killswitch_sub.add_parser(
+        "enable",
+        help="Enable the kill-switch.",
+    )
+    killswitch_enable.add_argument(
+        "--interface",
+        type=str,
+        default="tun0",
+        help="Network interface protected by the kill-switch.",
+    )
+    killswitch_enable.add_argument(
+        "--xray-uid",
+        type=int,
+        default=None,
+        help="UID used by xray-core.",
+    )
+    killswitch_enable.set_defaults(func=run_killswitch_enable)
 
-    ks_dis = ks_sub.add_parser("disable", help="Disable kill-switch.")
-    ks_dis.set_defaults(func=run_killswitch_disable)
+    killswitch_disable = killswitch_sub.add_parser(
+        "disable",
+        help="Disable the kill-switch.",
+    )
+    killswitch_disable.set_defaults(func=run_killswitch_disable)
 
-    ks_st = ks_sub.add_parser("status", help="Show kill-switch status.")
-    ks_st.set_defaults(func=run_killswitch_status)
+    killswitch_status = killswitch_sub.add_parser(
+        "status",
+        help="Show the current kill-switch status.",
+    )
+    killswitch_status.set_defaults(func=run_killswitch_status)
 
     return parser
 
 
 def main() -> NoReturn:
+    """Run the BiMarz command-line interface.
+
+    اجرای رابط خط فرمان BiMarz.
+    """
     parser = _build_parser()
     args = parser.parse_args()
 
     config = AppConfig.from_env()
+
     if getattr(args, "debug", False):
         config.log_level = logging.DEBUG
 
@@ -103,6 +202,7 @@ def main() -> NoReturn:
     except Exception as exc:
         if getattr(args, "debug", False):
             raise
+
         console.print(f"[red]Error: {exc}[/red]")
         console.print(
             "[yellow]hint:[/yellow] run with --debug for full traceback, or 'bimarz doctor' to check your setup"
