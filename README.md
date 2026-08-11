@@ -1,347 +1,828 @@
-# BiMarz (بی‌مرز)
+# 🐉 BiMarz — Cross-Platform Xray/VLESS Reality Orchestrator
 
-**یک لایه‌ی مدیریتی حرفه‌ای دور باینری Xray-core، ساخته‌شده برای شرایط سخت‌گیرانه‌ی فیلترینگ در ایران (و قابل استفاده در هر جای دنیا).**  
-**A professional management layer around the Xray-core binary, built for Iran's demanding filtering conditions (and usable anywhere in the world).**
+**BiMarz (بی‌مرز)** یک orchestrator چندسکویی برای مدیریت اتصال‌های **Xray/VLESS + Reality + XTLS Vision** است که با معماری ترکیبی **Python + Rust** طراحی شده است.
 
-[فارسی](#فارسی) | [English](#english)
-
-> ⚠️ **وضعیت فعلی پروژه:** فازهای **۰ تا ۵ از ۸** نقشه راه کامل و به‌صورت end-to-end روی سخت‌افزار واقعی تایید شده‌اند. فاز ۶ (تست و CI کامل) در حال انجام است. فاز ۷ (GUI دسکتاپ) شروع شده و اسکلت اولیه‌ی PySide6 پیاده‌سازی شده است. فاز ۸ (اپ اندروید) هنوز شروع نشده است. جزئیات کامل در بخش «وضعیت و نقشه راه».
-> ⚠️ **Current project status:** phases **0 through 5 of 8** on the roadmap are complete and verified end-to-end on real hardware. Phase 6 (full test suite & CI) is in progress. Phase 7 (Desktop GUI) has started and the initial PySide6 skeleton is implemented. Phase 8 (Android app) is not started yet. Full details in the "Status & Roadmap" section below.
+BiMarz لایه orchestration سطح بالا را در Python نگه می‌دارد و قابلیت‌های engine و عملیات سطح پایین را در Rust پیاده‌سازی می‌کند. این معماری با هدف ایجاد یک سیستم قابل‌اعتماد، تست‌پذیر، امن و قابل توسعه برای مدیریت پروفایل‌ها، اتصال‌ها، health monitoring، failover، DNS leak protection و kill switch طراحی شده است.
 
 ---
 
-## فارسی
+## 🇮🇷 فارسی
 
-### این پروژه چیست؟
+### 📖 معرفی
 
-`bimarz` قصد ندارد پروتکل رمزنگاری یا مبهم‌سازی بسازد — این کار توسط تیم [Xray-core](https://github.com/XTLS/xray-core) به بهترین شکل انجام شده و سال‌ها در میدان واقعی تست شده است. کاری که `bimarz` انجام می‌دهد، ساختن یک لایه‌ی مدیریتی حرفه‌ای *دور* آن باینری‌ست:
+BiMarz یک ابزار مدیریت و orchestration برای **xray-core** است که مسئولیت‌ها را میان دو لایه اصلی تقسیم می‌کند:
 
-- مدیریت چند پروفایل سرور بدون نیاز به ویرایش دستی فایل JSON
-- تست خودکار سلامت سرورها و سوییچ بی‌وقفه به بهترین گزینه (failover)
-- Kill-switch سطح سیستم تا در صورت قطع تونل، هیچ ترافیکی لو نرود (با fallback نرم‌افزاری صادقانه در محیط‌هایی مثل Termux/proot که دسترسی کرنل کامل ندارند)
-- جلوگیری از نشت DNS با اجبار DNS-over-HTTPS از طریق خودِ تونل
-- یک CLI واحد و ساده، با پیام‌های خطای دقیق و قابل‌فهم
-- GUI دسکتاپ (PySide6) در فاز ۷
+- **Python**: orchestration، مدیریت profile، health check، failover، DNS، CLI و GUI
+- **Rust**: engine، ساخت ساختارهای موردنیاز xray-core، validation سطح پایین و ارتباط engine با xray-core
 
-### چرا این معماری؟
+مرز میان این دو لایه از طریق **PyO3** تعریف شده است.
 
-| لایه | زبان | مسئولیت | چرا |
-|---|---|---|---|
-| Engine Adapter | **Rust** | اتصال gRPC به xray-core، health-check موازی، kill-switch، DNS guard | کارایی و ایمنی حافظه برای صدها اتصال همزمان و مدیریت دقیق شبکه |
-| Orchestrator | **Python** | CLI، مدیریت پروفایل، پارس subscription، منطق failover، GUI | سرعت توسعه، خوانایی، تجربه‌ی از قبل اثبات‌شده |
+هدف اصلی پروژه ایجاد یک معماری چندسکویی و قابل تست برای مدیریت اتصال‌های VLESS، Reality و XTLS Vision است.
 
-جزئیات کامل تصمیمات معماری و باگ‌های واقعی که در طول توسعه پیدا و رفع شدند (از جمله یک باگ حیاتی routing و یک باگ حیاتی UID در kill-switch) در `CHANGELOG.md` مستند شده‌اند.
+### ✨ قابلیت‌ها
 
-### معماری ماژولار فعلی
+- پشتیبانی از VLESS
+- پشتیبانی از Reality
+- پشتیبانی از XTLS Vision
+- parser برای VLESS share link
+- استخراج پارامترهای VLESS و Reality
+- ساخت outbound موردنیاز xray-core
+- ارتباط gRPC با xray-core
+- Health Check
+- Failover
+- مدیریت profileهای سرور
+- DNS Leak Protection
+- Kill Switch
+- CLI
+- رابط گرافیکی مبتنی بر PySide6
+- Rust engine با PyO3
+- تست‌های Python و Rust
+- تست‌های unit و integration
+- lint و formatting
+- CI و workflowهای مرتبط با کیفیت و release
 
+### 🏗️ معماری
+
+```text
+                         ┌──────────────────────┐
+                         │      BiMarz CLI      │
+                         └──────────┬───────────┘
+                                    │
+                         ┌──────────▼───────────┐
+                         │ Python Orchestrator  │
+                         │                      │
+                         │ profiles             │
+                         │ health               │
+                         │ failover             │
+                         │ DNS                  │
+                         │ CLI / GUI            │
+                         └──────────┬───────────┘
+                                    │ PyO3
+                         ┌──────────▼───────────┐
+                         │     Rust Engine      │
+                         │     engine-core      │
+                         └──────────┬───────────┘
+                                    │ gRPC
+                         ┌──────────▼───────────┐
+                         │      xray-core       │
+                         └──────────────────────┘
 ```
-┌─────────────────────────────────────────────┐
-│  CLI (argparse) — orchestrator/bimarz/cli.py │
-│  فقط _build_parser() و main() (~۱۱۷ خط)      │
-├─────────────────────────────────────────────┤
-│  commands/  — یک فایل به‌ازای هر زیر-دستور    │
-│  doctor.py | profile.py | healthcheck.py     │
-│  connect.py | killswitch.py                  │
-├─────────────────────────────────────────────┤
-│  services/  — منطق تجاری، مستقل از CLI/GUI   │
-│  doctor | profile | health | process         │
-│  engine | killswitch | failover              │
-├─────────────────────────────────────────────┤
-│  connection.py — ConnectionService (CM)      │
-│  config.py — AppConfig (env > default)       │
-│  events.py — Event system                    │
-│  protocols.py — DI Protocols                 │
-│  helpers.py — Stateless helpers              │
-├─────────────────────────────────────────────┤
-│  gui/ — PySide6 desktop (phase 7 skeleton)   │
-├─────────────────────────────────────────────┤
-│  engine-core (Rust) — PyO3 async bridge      │
-├─────────────────────────────────────────────┤
-│  Binary Xray-core (external process)         │
-└─────────────────────────────────────────────┘
+
+**Python مسئول orchestration و منطق سطح بالا است و Rust مسئول engine و عملیات سطح پایین است.**
+
+### 📁 ساختار پروژه
+
+```text
+bimarz/
+├── orchestrator/
+│   └── bimarz/
+│       ├── cli/
+│       ├── gui/
+│       ├── parsers/
+│       ├── services/
+│       ├── models/
+│       ├── dns_leak_guard.py
+│       ├── xray_config.py
+│       └── ...
+├── engine-core/
+│   └── src/
+│       ├── vless_builder.rs
+│       ├── grpc_client.rs
+│       └── ...
+├── tests/
+│   ├── unit/
+│   ├── integration/
+│   └── ...
+├── proto/
+├── .github/
+│   └── workflows/
+├── pyproject.toml
+├── Cargo.toml
+├── AGENTS.md
+├── AI_AGENT_RULES.md
+├── LICENSE
+└── README.md
 ```
 
-### وضعیت و نقشه راه
+> ساختار بالا نمای کلی repository است. برای جزئیات دقیق هر نسخه، ساختار واقعی فایل‌های repository مرجع اصلی است.
 
-| فاز | عنوان | وضعیت | توضیح |
-|---|---|---|---|
-| ۰ | اثبات مفهوم gRPC | ✅ کامل | اتصال اولیه به API محلی xray-core |
-| ۱ | Engine Adapter | ✅ کامل | gRPC واقعی: add/remove outbound، get stats |
-| ۲ | مدیریت پروفایل و Subscription | ✅ کامل | پارس VLESS+Reality، ذخیره‌ی رمزنگاری‌شده (PBKDF2+Fernet) |
-| ۳ | Health-check و Failover خودکار | ✅ کامل | `bimarz healthcheck`، `bimarz connect --auto-failover` |
-| ۴ | Kill-switch و ضدنشت DNS | ✅ کامل | `bimarz killswitch`، software fallback در Termux |
-| ۵ | تکمیل CLI و بسته‌بندی | ✅ کامل | doctor لایه‌ای، release workflow، build script، refactor ماژولار cli.py |
-| ۶ | تست و CI کامل | 🚧 در حال انجام | CI پایه آماده (ruff+pytest+cargo)، integration test با xray-core واقعی در حال تکمیل |
-| ۷ | رابط گرافیکی دسکتاپ | 🚧 شروع شده | PySide6، فقط لایه نمایش، بدون تکرار منطق |
-| ۸ | اپ اندروید | ⏳ شروع نشده | Kotlin + uniffi-rs، بدون fork منطق engine |
+### ⚙️ پیش‌نیازها
 
-جزئیات فنی هر تغییر در [`CHANGELOG.md`](./CHANGELOG.md) ثبت می‌شود.
+- Python 3.12 یا جدیدتر
+- Rust و Cargo
+- maturin
+- xray-core
+- Git
 
-### پیش‌نیازها
+#### xray-core
 
-| ابزار | حداقل نسخه | یادداشت |
-|---|---|---|
-| Python | ۳.۱۰+ | با venv |
-| Rust | ۱.۷۸+ | برای کامپایل engine-core |
-| xray-core | ۱.۸.۲۴ | باینری در PATH یا مسیر صریح با `--xray-bin` |
-| maturin | ۱.۷+ | برای ساخت پل PyO3 |
-| (اختیاری) PySide6 | ۶.۷+ | فقط برای GUI دسکتاپ |
+BiMarz برای اجرای واقعی اتصال‌ها به **xray-core** نیاز دارد. README نصب خودکار یا نسخه خاصی از xray-core را فرض نمی‌کند؛ نسخه و روش نصب باید مطابق configuration و مستندات فعلی پروژه و سیستم‌عامل مقصد انتخاب شود.
 
-### نصب (از سورس)
+پس از نصب، دستور زیر برای بررسی وضعیت محیط استفاده می‌شود:
+
+```bash
+bimarz doctor
+```
+
+در صورتی که `doctor` وضعیت xray-core یا executable مربوط به آن را گزارش کند، خروجی آن مرجع اصلی تشخیص محیط اجرایی خواهد بود.
+
+### 📦 نصب از سورس
 
 ```bash
 git clone https://github.com/msoleimani62/bimarz.git
 cd bimarz
-
-# ۱. واکشی proto های رسمی xray-core
-XRAY_TAG="v1.8.24"
-git clone --depth 1 --branch "$XRAY_TAG"     https://github.com/XTLS/xray-core.git /tmp/xray-core-src
-mkdir -p engine-core/proto
-cp -r /tmp/xray-core-src/app engine-core/proto/
-cp -r /tmp/xray-core-src/common engine-core/proto/
-rm -rf /tmp/xray-core-src
-
-# ۲. ساخت محیط مجازی و نصب
-python3 -m venv .venv
+python -m venv .venv
 source .venv/bin/activate
-pip install --upgrade pip maturin
-maturin develop --release
+python -m pip install -U pip
+python -m pip install maturin
+python -m pip install -e .
+```
 
-# ۳. بررسی نصب
+### 🔨 ساخت Rust Extension
+
+برای build کردن extension مربوط به Rust:
+
+```bash
+maturin develop --release
+```
+
+در پروژه‌هایی که build backend مربوط به maturin است، روش build نهایی باید مطابق `pyproject.toml` فعلی repository انجام شود.
+
+### 🩺 بررسی سلامت نصب
+
+پس از نصب:
+
+```bash
 bimarz doctor
 ```
 
-### استفاده
+این دستور برای بررسی وضعیت محیط، وابستگی‌ها و اجزای اصلی نصب‌شده استفاده می‌شود.
+
+### 👤 مدیریت Profile
+
+BiMarz اطلاعات اتصال را در قالب server profile مدیریت می‌کند.
+
+دستورهای اصلی CLI شامل موارد زیر هستند:
 
 ```bash
-# تشخیص محیط و سلامت
-bimarz doctor                          # بررسی کامل
-bimarz doctor --xray-bin /path/xray    # مسیر صریح باینری
-bimarz --debug doctor                  # نمایش traceback کامل
-
-# مدیریت پروفایل
-bimarz profile add "vless://..."       # افزودن از لینک VLESS+Reality+Vision
-bimarz profile list                    # نمایش پروفایل‌ها
-bimarz profile remove <id>             # حذف با شناسه
-
-# تست سلامت
-bimarz healthcheck                     # تست موازی همه‌ی پروفایل‌ها
-
-# اتصال
-bimarz connect <id>                              # اتصال ساده
-bimarz connect <id> --auto-failover              # failover خودکار
-bimarz connect <id> --killswitch                 # kill-switch فعال
-bimarz connect <id> --auto-failover --killswitch # همه با هم
-
-# kill-switch دستی
-bimarz killswitch enable --xray-uid $(id -u)
-bimarz killswitch disable
-bimarz killswitch status
+bimarz profile --help
+bimarz profile list
+bimarz profile add
+bimarz profile remove
 ```
 
-**رمزنگاری پروفایل‌ها:** پروفایل‌ها با PBKDF2-HMAC-SHA256 → Fernet رمزنگاری می‌شوند. اولین پسورد ثابت می‌شود. برای اسکریپت‌نویسی/CI متغیر `BIMARZ_PROFILE_PASSWORD` را تنظیم کن.
+جزئیات argumentها و optionهای هر command را همیشه می‌توان با `--help` مشاهده کرد.
 
-### پلتفرم‌های پشتیبانی‌شده
+### 🔗 VLESS Share Link
 
-| پلتفرم | تشخیص خودکار | kill-switch | یادداشت |
-|---|---|---|---|
-| Arch Linux (دسکتاپ) | ✅ | سطح کرنل (با روت) | محیط توسعه اصلی |
-| Kali NetHunter + Termux | ✅ | software fallback | chroot/proot، بدون روت هاست |
-| Termux ساده | ✅ | software fallback | |
-| WSL | ✅ | سطح کرنل (با روت) | |
-| سایر لینوکس | عمومی | بستگی به محیط | `desktop_linux` / `other` |
+BiMarz می‌تواند VLESS share link را parse کرده و پارامترهای پشتیبانی‌شده را استخراج کند.
 
-### حذف نصب
+اطلاعات قابل استخراج می‌تواند شامل موارد زیر باشد:
 
-```bash
-source .venv/bin/activate
-pip uninstall bimarz
-rm -rf ~/.config/bimarz          # داده‌های کاربر (پروفایل‌ها، لاگ)
-rm -rf ~/bimarz/.venv            # محیط مجازی
-cd ~ && rm -rf ~/bimarz          # سورس (اختیاری)
+- UUID
+- server address
+- port
+- flow
+- security
+- SNI
+- fingerprint
+- Reality public key (`pbk`)
+- Reality short ID (`sid`)
+- spiderX (`spx`)
+- network type
+- path
+- host
+- ALPN
+- سایر پارامترهای پشتیبانی‌شده parser
+
+نمونه:
+
+```text
+vless://UUID@example.com:443?type=tcp&security=reality&sni=example.com&fp=chrome&pbk=PUBLIC_KEY&sid=SHORT_ID&flow=xtls-rprx-vision#My-Server
 ```
 
-### مشارکت
+> مقادیر موجود در این نمونه صرفاً placeholder هستند و نباید به عنوان credential واقعی استفاده شوند.
 
-Issue و Pull Request در [GitHub](https://github.com/msoleimani62/bimarz) پذیرفته می‌شود. قبل از هر PR:
+### 🚀 اتصال
+
+برای مشاهده گزینه‌های اتصال:
 
 ```bash
-source .venv/bin/activate
-ruff check orchestrator tests
-ruff format --check orchestrator tests
+bimarz connect --help
+```
+
+BiMarz هنگام اتصال، configuration موردنیاز xray-core را آماده کرده و outbound فعال را مدیریت می‌کند.
+
+نحوه انتخاب profile فعال و سایر argumentها باید از خروجی `bimarz connect --help` در نسخه نصب‌شده مشخص شود.
+
+### ❤️ Health Check
+
+```bash
+bimarz healthcheck --help
+```
+
+Health Check برای بررسی وضعیت endpointها و سلامت مسیرهای مدیریت‌شده استفاده می‌شود.
+
+### 🔄 Failover
+
+در صورت از دسترس خارج شدن مسیر فعال، سیستم failover می‌تواند وضعیت مسیرهای مدیریت‌شده را بررسی کرده و بر اساس سیاست‌های پروژه مسیر مناسب بعدی را انتخاب کند.
+
+جزئیات thresholdها، policyها و شرایط تغییر مسیر باید مطابق implementation فعلی پروژه بررسی شود.
+
+### 🛡️ DNS Leak Protection
+
+BiMarz دارای لایه DNS Guard برای کنترل مسیر DNS queryها است.
+
+در configuration مربوط به xray-core می‌توان DNS outbound و routing ruleهای مربوط به DNS را برای جلوگیری از عبور DNS از مسیر کنترل‌نشده ایجاد کرد.
+
+هدف این بخش جلوگیری از نشت DNS خارج از مسیر موردنظر orchestration است.
+
+### 🔒 Kill Switch
+
+```bash
+bimarz killswitch --help
+```
+
+Kill Switch برای جلوگیری از عبور traffic خارج از مسیر proxy در شرایطی که مسیر موردنظر فعال یا سالم نیست طراحی شده است.
+
+فعال‌سازی واقعی Kill Switch به قابلیت‌های سیستم‌عامل، سطح دسترسی و implementation فعلی BiMarz وابسته است.
+
+### 🖥️ رابط گرافیکی
+
+BiMarz دارای GUI مبتنی بر **PySide6** است.
+
+رابط گرافیکی برای عملیات اصلی مدیریت orchestrator طراحی شده و بسته به وضعیت implementation می‌تواند شامل مدیریت profile، وضعیت اتصال و کنترل عملیات اصلی باشد.
+
+جزئیات دقیق قابلیت‌های GUI باید از نسخه فعلی کد GUI و release مربوطه استخراج شود.
+
+### 🧪 تست‌ها
+
+پروژه دارای چند سطح تست است:
+
+- Python unit tests
+- Python integration tests
+- Rust unit tests
+- parser tests
+- xray configuration tests
+- VLESS/Reality builder tests
+- engine/xray-core integration tests
+
+اجرای تست‌های Python:
+
+```bash
 pytest
-cd engine-core && cargo test && cargo clippy --all-targets -- -D warnings
 ```
 
-### مجوز
+اجرای تست‌های Rust:
 
-MIT — فایل [`LICENSE`](./LICENSE) را ببینید.
+```bash
+cargo test --manifest-path engine-core/Cargo.toml
+```
+
+### 🧹 بررسی کیفیت کد
+
+برای بررسی lint و formatting:
+
+```bash
+ruff check .
+ruff format --check .
+cargo fmt --check
+cargo clippy --all-targets --all-features -- -D warnings
+```
+
+تمام این بررسی‌ها باید قبل از اعلام یک تغییر به عنوان نسخه سالم یا release-ready اجرا شوند.
+
+### 🔬 VLESS Builder
+
+Rust engine دارای builder اختصاصی برای تبدیل پارامترهای VLESS + Reality + Vision به ساختارهای protobuf موردنیاز xray-core است.
+
+این بخش مسئولیت‌هایی مانند موارد زیر را بر عهده دارد:
+
+- VLESS Account
+- VLESS Outbound Config
+- Reality Config
+- Stream Config
+- Sender Config
+- Server Endpoint
+- IPv4 address
+- IPv6 address
+- Domain address
+- Reality public key decoding
+- Reality short ID decoding
+- UUID validation
+- address validation
+- port validation
+
+ورودی‌ها باید پیش از ساخت protobuf اعتبارسنجی شوند تا داده نامعتبر وارد لایه engine نشود.
+
+### 🔌 xray-core Configuration
+
+BiMarz configuration موردنیاز xray-core را بر اساس نیازهای orchestration ایجاد یا مدیریت می‌کند.
+
+اجزای مورد استفاده می‌توانند شامل موارد زیر باشند:
+
+- API
+- HandlerService
+- StatsService
+- SOCKS inbound
+- outbound configuration
+- active outbound routing
+- statistics
+- DNS configuration
+- routing rules
+
+Configuration واقعی باید همیشه با implementation فعلی پروژه تطبیق داده شود.
+
+### 📊 Statistics
+
+برای health monitoring و مشاهده وضعیت اتصال، BiMarz از قابلیت‌های statistics و StatsService مربوط به xray-core استفاده می‌کند.
+
+این اطلاعات می‌تواند برای health monitoring، تشخیص وضعیت endpoint و تصمیم‌گیری در failover مورد استفاده قرار گیرد.
+
+### 🔐 امنیت
+
+امنیت پروژه بر پایه جداسازی مسئولیت‌ها و validation ورودی‌ها طراحی شده است.
+
+- Python مسئول orchestration است.
+- Rust مسئول engine و عملیات سطح پایین است.
+- ورودی‌ها پیش از ساخت protobuf اعتبارسنجی می‌شوند.
+- ورودی خام کاربر نباید به عنوان command سیستم‌عامل اجرا شود.
+- خطاها باید به شکل ساختاریافته مدیریت شوند.
+- API contractها باید تست شوند.
+- credentialها و داده‌های حساس نباید در repository قرار بگیرند.
+- Reality private key نباید در repository، log یا فایل عمومی ذخیره یا منتشر شود.
+
+### 🤖 قوانین توسعه
+
+قبل از هر تغییر در repository، توسعه‌دهندگان و AI agentها باید اسناد زیر را مطالعه کنند:
+
+```text
+AGENTS.md
+AI_AGENT_RULES.md
+```
+
+این اسناد مرجع اصلی قوانین پروژه برای موارد زیر هستند:
+
+- معماری
+- مرز Python/Rust
+- قراردادهای PyO3
+- تست‌ها
+- lint و formatting
+- امنیت
+- مدیریت dependencyها
+- فرآیند توسعه
+- قوانین تغییر repository
+
+README جایگزین این اسناد نیست و در صورت وجود تعارض، قوانین repository و اسناد الزام‌آور پروژه مرجع هستند.
+
+### 📋 Source of Truth
+
+برای اطلاعاتی که ممکن است با تغییر کد تغییر کنند، منبع اصلی repository است:
+
+1. `pyproject.toml` برای metadata و Python packaging
+2. `Cargo.toml` برای Rust crate و dependencyهای Rust
+3. CLI implementation برای commandها و optionها
+4. `AGENTS.md` و `AI_AGENT_RULES.md` برای قوانین توسعه
+5. `LICENSE` برای مجوز پروژه
+6. CI workflows برای pipelineهای build و test
+
+README باید هنگام تغییر این منابع به‌روزرسانی شود.
+
+### 📦 نسخه پروژه
+
+نسخه باید از metadata رسمی پروژه و source of truth تعریف‌شده در repository پیروی کند.
+
+```text
+BiMarz 0.2.0
+```
+
+این مقدار باید هنگام release با version واقعی package و engine تطبیق داده شود.
+
+### 🗑️ حذف نصب
+
+اگر پروژه داخل virtual environment نصب شده است:
+
+```bash
+deactivate
+rm -rf .venv
+```
+
+برای حذف package نصب‌شده به صورت editable:
+
+```bash
+python -m pip uninstall bimarz
+```
+
+در صورت نیاز می‌توان repository محلی را نیز حذف کرد:
+
+```bash
+cd ..
+rm -rf bimarz
+```
+
+> حذف repository باعث حذف source code محلی می‌شود. قبل از اجرای `rm -rf` از مسیر فعلی اطمینان حاصل کنید.
+
+### 📜 مجوز
+
+مجوز رسمی پروژه در فایل `LICENSE` repository تعریف شده است.
+
+همیشه متن و نوع مجوز موجود در `LICENSE` را مرجع اصلی بدانید و از فرض کردن نوع license بر اساس README خودداری کنید.
+
+### 👨‍💻 توسعه‌دهنده
+
+GitHub: `msoleimani62`
 
 ---
 
-## English
+## 🇬🇧 English
 
-### What is this?
+### 📖 Overview
 
-`bimarz` does not attempt to build a new encryption or obfuscation protocol — that job is already done exceptionally well by the [Xray-core](https://github.com/XTLS/xray-core) team and has been battle-tested for years. What `bimarz` builds is a professional management layer *around* that binary:
+BiMarz is a cross-platform orchestration layer around **xray-core** for managing **VLESS + Reality + XTLS Vision** connections.
 
-- Managing multiple server profiles without hand-editing JSON
-- Automatic health-checking with seamless failover to the best server
-- A system-level kill-switch so no traffic leaks if the tunnel drops (with an honest software fallback in environments like Termux/proot that lack full kernel access)
-- DNS leak protection by forcing DNS-over-HTTPS through the tunnel itself
-- A single, coherent CLI with precise, understandable error messages
-- Desktop GUI (PySide6) in phase 7
+The project separates high-level orchestration from low-level engine functionality by using **Python** for orchestration and **Rust** for the engine layer.
 
-### Why this architecture?
+Python handles profiles, health monitoring, failover, DNS-related orchestration, CLI and GUI operations, while Rust handles the engine layer and low-level functionality through a PyO3 boundary.
 
-| Layer | Language | Responsibility | Why |
-|---|---|---|---|
-| Engine Adapter | **Rust** | gRPC to xray-core, parallel health-checks, kill-switch, DNS guard | Performance and memory safety for hundreds of concurrent connections |
-| Orchestrator | **Python** | CLI, profile management, subscription parsing, failover logic, GUI | Development speed, readability, proven pattern |
+### ✨ Features
 
-Full architectural reasoning, and real bugs found and fixed during development (including a critical routing bug and a critical kill-switch UID bug), are documented in `CHANGELOG.md`.
+- VLESS support
+- Reality support
+- XTLS Vision support
+- VLESS share-link parsing
+- VLESS and Reality parameter extraction
+- xray-core outbound generation
+- gRPC communication with xray-core
+- Health checks
+- Failover
+- Server profile management
+- DNS leak protection
+- Kill switch
+- Command-line interface
+- PySide6 graphical interface
+- Rust engine through PyO3
+- Python and Rust tests
+- Unit and integration testing
+- Linting and formatting
+- CI and release-related workflows
 
-### Current Modular Architecture
+### 🏗️ Architecture
 
+```text
+                         ┌──────────────────────┐
+                         │      BiMarz CLI      │
+                         └──────────┬───────────┘
+                                    │
+                         ┌──────────▼───────────┐
+                         │ Python Orchestrator  │
+                         │                      │
+                         │ profiles             │
+                         │ health               │
+                         │ failover             │
+                         │ DNS                  │
+                         │ CLI / GUI            │
+                         └──────────┬───────────┘
+                                    │ PyO3
+                         ┌──────────▼───────────┐
+                         │     Rust Engine      │
+                         │     engine-core      │
+                         └──────────┬───────────┘
+                                    │ gRPC
+                         ┌──────────▼───────────┐
+                         │      xray-core       │
+                         └──────────────────────┘
 ```
-┌─────────────────────────────────────────────┐
-│  CLI (argparse) — orchestrator/bimarz/cli.py │
-│  Only _build_parser() and main() (~117 loc)  │
-├─────────────────────────────────────────────┤
-│  commands/  — one file per CLI sub-command   │
-│  doctor.py | profile.py | healthcheck.py     │
-│  connect.py | killswitch.py                  │
-├─────────────────────────────────────────────┤
-│  services/  — business logic, CLI/GUI agnostic│
-│  doctor | profile | health | process         │
-│  engine | killswitch | failover              │
-├─────────────────────────────────────────────┤
-│  connection.py — ConnectionService (CM)      │
-│  config.py — AppConfig (env > default)       │
-│  events.py — Event system                    │
-│  protocols.py — DI Protocols                 │
-│  helpers.py — Stateless helpers              │
-├─────────────────────────────────────────────┤
-│  gui/ — PySide6 desktop (phase 7 skeleton)   │
-├─────────────────────────────────────────────┤
-│  engine-core (Rust) — PyO3 async bridge      │
-├─────────────────────────────────────────────┤
-│  Binary Xray-core (external process)         │
-└─────────────────────────────────────────────┘
+
+Python owns orchestration and high-level logic. Rust owns the engine and low-level operations.
+
+### 📁 Project Structure
+
+```text
+bimarz/
+├── orchestrator/
+│   └── bimarz/
+│       ├── cli/
+│       ├── gui/
+│       ├── parsers/
+│       ├── services/
+│       ├── models/
+│       ├── dns_leak_guard.py
+│       ├── xray_config.py
+│       └── ...
+├── engine-core/
+│   └── src/
+│       ├── vless_builder.rs
+│       ├── grpc_client.rs
+│       └── ...
+├── tests/
+│   ├── unit/
+│   ├── integration/
+│   └── ...
+├── proto/
+├── .github/
+│   └── workflows/
+├── pyproject.toml
+├── Cargo.toml
+├── AGENTS.md
+├── AI_AGENT_RULES.md
+├── LICENSE
+└── README.md
 ```
 
-### Status & Roadmap
+The repository structure above is a high-level overview. The actual repository remains the authoritative source for the exact file layout.
 
-| Phase | Title | Status | Notes |
-|---|---|---|---|
-| 0 | gRPC proof-of-concept | ✅ Complete | Initial local API connection |
-| 1 | Engine Adapter | ✅ Complete | Real gRPC: add/remove outbound, get stats |
-| 2 | Profile & Subscription Manager | ✅ Complete | VLESS+Reality parsing, encrypted storage (PBKDF2+Fernet) |
-| 3 | Health-check & automatic Failover | ✅ Complete | `bimarz healthcheck`, `bimarz connect --auto-failover` |
-| 4 | Kill-switch & DNS leak guard | ✅ Complete | `bimarz killswitch`, software fallback on Termux |
-| 5 | CLI polish & packaging | ✅ Complete | Layered doctor, release workflow, build script, modular cli.py refactor |
-| 6 | Full test suite & CI | 🚧 In progress | Base CI ready (ruff+pytest+cargo), real xray-core integration test being finalized |
-| 7 | Desktop GUI | 🚧 Started | PySide6, display layer only, no logic duplication |
-| 8 | Android app | ⏳ Not started | Kotlin + uniffi-rs, no engine logic fork |
+### ⚙️ Requirements
 
-Every technical change is logged in [`CHANGELOG.md`](./CHANGELOG.md).
+- Python 3.12 or newer
+- Rust and Cargo
+- maturin
+- xray-core
+- Git
 
-### Prerequisites
+#### xray-core
 
-| Tool | Minimum version | Notes |
-|---|---|---|
-| Python | 3.10+ | with venv |
-| Rust | 1.78+ | to compile engine-core |
-| xray-core | 1.8.24 | binary in PATH or explicit `--xray-bin` |
-| maturin | 1.7+ | for building the PyO3 bridge |
-| (optional) PySide6 | 6.7+ | desktop GUI only |
+BiMarz requires **xray-core** for actual connection operation. This README does not assume a specific installation method or silently install xray-core. The required version and installation method should follow the current project configuration and the target operating system.
 
-### Installation (from source)
+After installation, run:
+
+```bash
+bimarz doctor
+```
+
+The doctor command should be used as the primary environment check when supported by the current implementation.
+
+### 📦 Installation from Source
 
 ```bash
 git clone https://github.com/msoleimani62/bimarz.git
 cd bimarz
-
-# 1. Fetch official xray-core proto files
-XRAY_TAG="v1.8.24"
-git clone --depth 1 --branch "$XRAY_TAG"     https://github.com/XTLS/xray-core.git /tmp/xray-core-src
-mkdir -p engine-core/proto
-cp -r /tmp/xray-core-src/app engine-core/proto/
-cp -r /tmp/xray-core-src/common engine-core/proto/
-rm -rf /tmp/xray-core-src
-
-# 2. Build virtual environment and install
-python3 -m venv .venv
+python -m venv .venv
 source .venv/bin/activate
-pip install --upgrade pip maturin
-maturin develop --release
+python -m pip install -U pip
+python -m pip install maturin
+python -m pip install -e .
+```
 
-# 3. Verify installation
+### 🔨 Build the Rust Extension
+
+```bash
+maturin develop --release
+```
+
+The final build procedure should always follow the current `pyproject.toml` and maturin configuration.
+
+### 🩺 Installation Check
+
+```bash
 bimarz doctor
 ```
 
-### Usage
+Use this command to inspect the local environment, dependencies and available project components.
+
+### 👤 Profile Management
+
+BiMarz manages connection information through server profiles.
 
 ```bash
-# Environment diagnostics
-bimarz doctor                          # full check
-bimarz doctor --xray-bin /path/xray    # explicit binary path
-bimarz --debug doctor                  # show full traceback on failure
-
-# Profile management
-bimarz profile add "vless://..."       # add from VLESS+Reality+Vision link
-bimarz profile list                    # list saved profiles
-bimarz profile remove <id>             # remove by id
-
-# Health check
-bimarz healthcheck                     # parallel check all profiles
-
-# Connection
-bimarz connect <id>                              # simple connect
-bimarz connect <id> --auto-failover              # auto failover
-bimarz connect <id> --killswitch                 # enable kill-switch
-bimarz connect <id> --auto-failover --killswitch # both together
-
-# Manual kill-switch
-bimarz killswitch enable --xray-uid $(id -u)
-bimarz killswitch disable
-bimarz killswitch status
+bimarz profile --help
+bimarz profile list
+bimarz profile add
+bimarz profile remove
 ```
 
-**Profile encryption:** Profiles are encrypted with PBKDF2-HMAC-SHA256 → Fernet. The first password you enter becomes permanent. For scripting/CI, set the `BIMARZ_PROFILE_PASSWORD` environment variable instead of being prompted interactively.
+Command-specific arguments and options should always be verified with the installed CLI using `--help`.
 
-### Supported platforms
+### 🔗 VLESS Share Links
 
-| Platform | Auto-detection | Kill-switch | Notes |
-|---|---|---|---|
-| Arch Linux (desktop) | ✅ | Kernel-level (with root) | Primary dev environment |
-| Kali NetHunter + Termux | ✅ | Software fallback | chroot/proot, no host root |
-| Plain Termux | ✅ | Software fallback | |
-| WSL | ✅ | Kernel-level (with root) | |
-| Other Linux distros | Generic | Environment-dependent | `desktop_linux` / `other` |
+BiMarz can parse VLESS share links and extract supported parameters such as UUID, server address, port, flow, security, SNI, fingerprint, Reality public key, short ID, transport settings and other supported fields.
 
-### Uninstall
+Example:
 
-```bash
-source .venv/bin/activate
-pip uninstall bimarz
-rm -rf ~/.config/bimarz          # user data (profiles, logs)
-rm -rf ~/bimarz/.venv            # virtual environment
-cd ~ && rm -rf ~/bimarz          # source (optional)
+```text
+vless://UUID@example.com:443?type=tcp&security=reality&sni=example.com&fp=chrome&pbk=PUBLIC_KEY&sid=SHORT_ID&flow=xtls-rprx-vision#My-Server
 ```
 
-### Contributing
+The values in this example are placeholders and are not real credentials.
 
-Issues and Pull Requests are welcome on [GitHub](https://github.com/msoleimani62/bimarz). Before opening a PR:
+### 🚀 Connect
 
 ```bash
-source .venv/bin/activate
-ruff check orchestrator tests
-ruff format --check orchestrator tests
+bimarz connect --help
+```
+
+BiMarz prepares the required xray-core configuration and manages the active outbound during connection operations.
+
+The exact profile-selection mechanism and command arguments must be obtained from the installed version using `bimarz connect --help`.
+
+### ❤️ Health Check
+
+```bash
+bimarz healthcheck --help
+```
+
+Health checks are used to monitor managed endpoints and connection health.
+
+### 🔄 Failover
+
+BiMarz can monitor managed endpoints and switch away from an unavailable active route when the configured failover conditions are met.
+
+The exact thresholds, policies and switching conditions depend on the current implementation.
+
+### 🛡️ DNS Leak Protection
+
+BiMarz provides a DNS Guard layer intended to control DNS query routing.
+
+The xray-core configuration may include DNS outbounds and routing rules for DNS traffic so that DNS queries do not escape through an uncontrolled path.
+
+### 🔒 Kill Switch
+
+```bash
+bimarz killswitch --help
+```
+
+The kill switch is designed to prevent traffic from bypassing the intended proxy path when the managed route is unavailable or inactive.
+
+Actual kill-switch behavior depends on the operating system, required privileges and the current implementation.
+
+### 🖥️ Graphical Interface
+
+BiMarz includes a **PySide6-based GUI** for core orchestrator operations.
+
+Depending on the current implementation, the GUI may provide profile management, connection status and control over core orchestration operations.
+
+The current GUI implementation remains the authoritative source for its exact feature set.
+
+### 🧪 Testing
+
+The project contains multiple testing layers:
+
+- Python unit tests
+- Python integration tests
+- Rust unit tests
+- parser tests
+- xray configuration tests
+- VLESS/Reality builder tests
+- engine/xray-core integration tests
+
+Python tests:
+
+```bash
 pytest
-cd engine-core && cargo test && cargo clippy --all-targets -- -D warnings
 ```
 
-### License
+Rust tests:
 
-MIT — see the [`LICENSE`](./LICENSE) file.
+```bash
+cargo test --manifest-path engine-core/Cargo.toml
+```
+
+### 🧹 Code Quality
+
+```bash
+ruff check .
+ruff format --check .
+cargo fmt --check
+cargo clippy --all-targets --all-features -- -D warnings
+```
+
+These checks should pass before a change is considered release-ready.
+
+### 🔬 VLESS Builder
+
+The Rust engine contains a dedicated builder for converting VLESS + Reality + Vision parameters into protobuf structures required by xray-core.
+
+It handles VLESS accounts, outbound configuration, Reality configuration, stream settings, sender settings, server endpoints, IPv4/IPv6/domain addresses, Reality key decoding, short-ID decoding and input validation.
+
+Invalid inputs should be rejected before protobuf construction.
+
+### 🔌 xray-core Configuration
+
+BiMarz manages the xray-core configuration required by its orchestration layer.
+
+Depending on the current implementation, this can include:
+
+- API
+- HandlerService
+- StatsService
+- SOCKS inbound
+- outbound configuration
+- active outbound routing
+- statistics
+- DNS configuration
+- routing rules
+
+The implementation in the repository is the authoritative source for the exact generated configuration.
+
+### 📊 Statistics
+
+BiMarz uses xray-core statistics and StatsService capabilities for connection monitoring and health-related decisions.
+
+Statistics may be used by health monitoring and failover logic to evaluate endpoint state.
+
+### 🔐 Security
+
+The security model is based on separation of responsibilities and strict input validation.
+
+- Python owns orchestration.
+- Rust owns the engine layer.
+- Inputs are validated before protobuf construction.
+- Raw user input must never be executed as an operating-system command.
+- Errors should be handled through structured error paths.
+- API contracts should be covered by tests.
+- Credentials and sensitive data must not be committed to the repository.
+- Reality private keys must never be stored in the repository, logs or public files.
+
+### 🤖 Development Rules
+
+Before modifying the repository, developers and AI agents must read:
+
+```text
+AGENTS.md
+AI_AGENT_RULES.md
+```
+
+These documents define the project rules for architecture, Python/Rust boundaries, PyO3 contracts, testing, linting, security, dependencies and development workflow.
+
+The README does not replace these documents. If a conflict exists, the repository constitution and binding development rules take precedence.
+
+### 📋 Source of Truth
+
+The following files are authoritative for information that changes with the implementation:
+
+1. `pyproject.toml` for Python metadata and packaging
+2. `Cargo.toml` for Rust package configuration and dependencies
+3. CLI implementation for commands and options
+4. `AGENTS.md` and `AI_AGENT_RULES.md` for development rules
+5. `LICENSE` for the project license
+6. CI workflows for build and test pipelines
+
+The README should be updated whenever these sources change.
+
+### 📦 Current Version
+
+The project version must follow the repository metadata and its defined source of truth.
+
+```text
+BiMarz 0.2.0
+```
+
+This value must be verified against the actual package and engine versions when preparing a release.
+
+### 🗑️ Uninstallation
+
+For a local virtual environment:
+
+```bash
+deactivate
+rm -rf .venv
+```
+
+For an editable package installation:
+
+```bash
+python -m pip uninstall bimarz
+```
+
+If the local repository is no longer needed:
+
+```bash
+cd ..
+rm -rf bimarz
+```
+
+Be certain about the current directory before running `rm -rf`.
+
+### 📜 License
+
+The official project license is defined by the `LICENSE` file in the repository.
+
+The `LICENSE` file is the authoritative source for the exact license terms.
+
+### 👨‍💻 Developer
+
+GitHub: `msoleimani62`
+
+---
+
+## 📌 Documentation Policy
+
+README content must describe the implementation that actually exists in the repository. Features, commands, versions, dependencies and architecture must not be documented as available merely because they are planned.
+
+When implementation and documentation diverge, the implementation must be reviewed first and the README must then be updated to match the verified behavior.
+
+---
+
+## 📄 Quick Reference
+
+```text
+Project       : BiMarz
+Architecture  : Python + Rust + PyO3
+Core          : xray-core
+Protocols     : VLESS / Reality / XTLS Vision
+GUI           : PySide6
+Build         : maturin
+Python        : 3.12+
+Rust          : stable toolchain
+License       : See LICENSE
+GitHub        : msoleimani62
+```
