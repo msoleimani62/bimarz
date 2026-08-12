@@ -75,7 +75,6 @@ class FailoverEvent:
     ثبت یک رویداد سوییچ خودکار failover.
 
     NOTE: never include raw UUIDs/private keys here.
-
     نکته: هرگز UUID/کلید خصوصی خام اینجا قرار نگیرد.
     """
 
@@ -106,6 +105,18 @@ class DoctorReport:
     warnings: list[str] = field(default_factory=list)
 
 
+class KillSwitchWatcherState(str, Enum):
+    """Lifecycle state of the kill-switch process watcher.
+
+    وضعیت چرخه عمر watcher مربوط به kill-switch.
+    """
+
+    NOT_STARTED = "not_started"
+    RUNNING = "running"
+    STOPPED = "stopped"
+    PROCESS_DIED = "process_died"
+
+
 @dataclass(frozen=True)
 class KillSwitchState:
     """Current state of the kill-switch.
@@ -117,6 +128,9 @@ class KillSwitchState:
     active: bool
     interface: str | None = None
     xray_uid: int | None = None
+    watcher_state: KillSwitchWatcherState = KillSwitchWatcherState.NOT_STARTED
+    triggered: bool = False
+    trigger_reason: str | None = None
 
 
 @dataclass(frozen=True)

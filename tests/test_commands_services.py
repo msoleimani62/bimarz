@@ -81,6 +81,29 @@ def test_killswitch_service_disable() -> None:
     manager.deactivate.assert_called_once()
 
 
+def test_killswitch_service_start_watcher_delegates() -> None:
+    manager = MagicMock()
+    poll_fn = MagicMock()
+
+    KillSwitchService(manager).start_watcher(
+        poll_fn=poll_fn,
+        interval_seconds=0.25,
+    )
+
+    manager.start_process_watcher.assert_called_once_with(
+        poll_fn=poll_fn,
+        interval_seconds=0.25,
+    )
+
+
+def test_killswitch_service_stop_watcher_delegates() -> None:
+    manager = MagicMock()
+
+    KillSwitchService(manager).stop_watcher()
+
+    manager.stop_process_watcher.assert_called_once()
+
+
 def test_killswitch_service_status_methods() -> None:
     manager = MagicMock()
     manager.state.active = True

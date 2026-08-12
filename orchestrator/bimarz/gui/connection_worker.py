@@ -51,7 +51,7 @@ def detect_default_interface() -> str:
                     if iface and iface != "lo":
                         return iface
     except Exception:
-        pass
+        logger.exception("Failed to detect default network interface from /proc/net/route")
 
     candidates = [
         "eth0",

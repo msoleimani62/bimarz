@@ -168,6 +168,9 @@ def test_start_enables_killswitch() -> None:
     asyncio.run(run())
 
     killswitch.enable.assert_called_once_with(interface="tun9")
+    killswitch.start_watcher.assert_called_once_with(
+        poll_fn=process.start.return_value.is_running,
+    )
     assert ConnectionEvent.KILLSWITCH_ENABLED in events
 
 
@@ -255,3 +258,64 @@ def test_unregister_signals_clears_registered_signals() -> None:
 
     loop.remove_signal_handler.assert_called_once()
     assert conn._signals_registered == []
+
+
+def test_detect_default_interface_reads_default_route(monkeypatch) -> None:
+    """Returns the interface from the default Linux route.
+
+    رابط مربوط به مسیر پیش‌فرض لینوکس را برمی‌گرداند.
+    """
+    from io import StringIO
+    from pathlib import Path
+
+    import bimarz.gui.connection_worker as worker_module
+
+    original_exists = Path.exists
+
+    def fake_exists(self: Path) -> bool:
+        if str(self) == "/proc/net/route":
+            return True
+        return original_exists(self)
+
+    route_data = (
+        "Iface Destination Gateway Flags RefCnt Use Metric Mask MTU Window IRTT\n"
+        "wlan0 00000000 0101A8C0 0003 0 0 600 00000000 0 0 0\n"
+    )
+
+    monkeypatch.setattr(worker_module.Path, "exists", fake_exists)
+    monkeypatch.setattr(
+        "builtins.open",
+        lambda *args, **kwargs: StringIO(route_data),
+    )
+
+    assert worker_module.detect_default_interface() == "wlan0"
+
+
+def test_detect_default_interface_ignores_loopback_route(monkeypatch) -> None:
+    """Falls back when the default route only points to loopback.
+
+    وقتی مسیر پیش‌فرض فقط به loopback اشاره کند، به fallback می‌رود.
+    """
+    from io import StringIO
+    from pathlib import Path
+
+    import bimarz.gui.connection_worker as worker_module
+
+    def fake_exists(self: Path) -> bool:
+        path = str(self)
+        if path == "/proc/net/route":
+            return True
+        return path == "/sys/class/net/eth0"
+
+    route_data = (
+        "Iface Destination Gateway Flags RefCnt Use Metric Mask MTU Window IRTT\n"
+        "lo 00000000 00000000 0001 0 0 0 00000000 0 0 0\n"
+    )
+
+    monkeypatch.setattr(worker_module.Path, "exists", fake_exists)
+    monkeypatch.setattr(
+        "builtins.open",
+        lambda *args, **kwargs: StringIO(route_data),
+    )
+
+    assert worker_module.detect_default_interface() == "eth0"

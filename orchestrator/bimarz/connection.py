@@ -130,6 +130,9 @@ class ConnectionService:
                 interface=self.config.default_interface,
             )
             self._emit(ConnectionEvent.KILLSWITCH_ENABLED)
+            self.ks_svc.start_watcher(
+                poll_fn=proc.is_running,
+            )
 
         self._register_signals()
 
@@ -234,6 +237,9 @@ class ConnectionService:
         self._cleaned = True
 
         self._unregister_signals()
+
+        with suppress(Exception):
+            self.ks_svc.stop_watcher()
 
         with suppress(Exception):
             self.process_svc.stop()
