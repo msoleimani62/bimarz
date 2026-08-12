@@ -52,10 +52,39 @@ jobs:
           cache: pip
 
       - name: Install project
-        run: python -m pip install --upgrade pip && python -m pip install .
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .
 
       - name: Install pip-audit
         run: python -m pip install pip-audit
 
       - name: Audit installed Python dependencies
         run: pip-audit
+
+  python-bandit:
+    name: Python static security analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install project and bandit
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .
+          python -m pip install bandit
+
+      - name: Run bandit on orchestrator
+        run: bandit -r orchestrator/bimarz -f json -o bandit-report.json
+
+      - name: Display bandit summary
+        run: bandit -r orchestrator/bimarz -ll

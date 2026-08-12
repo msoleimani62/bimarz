@@ -1,8 +1,12 @@
 # 🐉 BiMarz — Cross-Platform Xray/VLESS Reality Orchestrator
 
-**BiMarz (بی‌مرز)** یک orchestrator چندسکویی برای مدیریت اتصال‌های **Xray/VLESS + Reality + XTLS Vision** است که با معماری ترکیبی **Python + Rust** طراحی شده است.
+**BiMarz (بی‌مرز)** یک لایه orchestration چندسکویی برای مدیریت اتصال‌های **Xray/VLESS + Reality + XTLS Vision** است که با معماری ترکیبی **Python + Rust** طراحی شده است.
 
-BiMarz لایه orchestration سطح بالا را در Python نگه می‌دارد و قابلیت‌های engine و عملیات سطح پایین را در Rust پیاده‌سازی می‌کند. این معماری با هدف ایجاد یک سیستم قابل‌اعتماد، تست‌پذیر، امن و قابل توسعه برای مدیریت پروفایل‌ها، اتصال‌ها، health monitoring، failover، DNS leak protection و kill switch طراحی شده است.
+BiMarz لایه orchestration سطح بالا را در Python نگه می‌دارد و قابلیت‌های engine و عملیات سطح پایین را در Rust پیاده‌سازی می‌کند. این معماری برای ایجاد یک سیستم قابل‌اعتماد، تست‌پذیر، امن و قابل توسعه برای مدیریت profileها، اتصال‌ها، health monitoring، failover، DNS leak protection و kill switch طراحی شده است.
+
+[🇮🇷 فارسی](#فارسی) | [🇬🇧 English](#english)
+
+> **وضعیت فعلی پروژه:** فازهای ۰ تا ۶ کامل شده‌اند. فاز ۷ در حال انجام است و فاز ۸ هنوز شروع نشده است. وضعیت دقیق هر فاز در بخش Roadmap و وضعیت implementation واقعی در repository مرجع است.
 
 ---
 
@@ -10,9 +14,9 @@ BiMarz لایه orchestration سطح بالا را در Python نگه می‌د�
 
 ### 📖 معرفی
 
-BiMarz یک ابزار مدیریت و orchestration برای **xray-core** است که مسئولیت‌ها را میان دو لایه اصلی تقسیم می‌کند:
+BiMarz یک ابزار orchestration و مدیریت برای **xray-core** است که مسئولیت‌ها را میان دو لایه اصلی تقسیم می‌کند:
 
-- **Python**: orchestration، مدیریت profile، health check، failover، DNS، CLI و GUI
+- **Python**: orchestration، مدیریت profile، subscription، health check، failover، DNS، CLI و GUI
 - **Rust**: engine، ساخت ساختارهای موردنیاز xray-core، validation سطح پایین و ارتباط engine با xray-core
 
 مرز میان این دو لایه از طریق **PyO3** تعریف شده است.
@@ -31,6 +35,8 @@ BiMarz یک ابزار مدیریت و orchestration برای **xray-core** اس
 - Health Check
 - Failover
 - مدیریت profileهای سرور
+- مدیریت subscription در بخش‌های پیاده‌سازی‌شده
+- ذخیره‌سازی امن profileها در بخش‌های پیاده‌سازی‌شده
 - DNS Leak Protection
 - Kill Switch
 - CLI
@@ -39,38 +45,41 @@ BiMarz یک ابزار مدیریت و orchestration برای **xray-core** اس
 - تست‌های Python و Rust
 - تست‌های unit و integration
 - lint و formatting
-- CI و workflowهای مرتبط با کیفیت و release
+- CI/CD و workflowهای مرتبط با build، test و release
+- بررسی امنیتی dependencyها با cargo-audit، pip-audit و bandit
 
 ### 🏗️ معماری
 
 ```text
-                         ┌──────────────────────┐
-                         │      BiMarz CLI      │
-                         └──────────┬───────────┘
-                                    │
-                         ┌──────────▼───────────┐
-                         │ Python Orchestrator  │
-                         │                      │
-                         │ profiles             │
-                         │ health               │
-                         │ failover             │
-                         │ DNS                  │
-                         │ CLI / GUI            │
-                         └──────────┬───────────┘
-                                    │ PyO3
-                         ┌──────────▼───────────┐
-                         │     Rust Engine      │
-                         │     engine-core      │
-                         └──────────┬───────────┘
-                                    │ gRPC
-                         ┌──────────▼───────────┐
-                         │      xray-core       │
-                         └──────────────────────┘
+                         ┌────────────────────────────┐
+                         │         BiMarz CLI         │
+                         └──────────────┬─────────────┘
+                                        │
+                         ┌──────────────▼─────────────┐
+                         │     Python Orchestrator    │
+                         │                            │
+                         │ profiles                   │
+                         │ subscriptions              │
+                         │ health / failover          │
+                         │ DNS / kill switch          │
+                         │ CLI / GUI                  │
+                         └──────────────┬─────────────┘
+                                        │ PyO3
+                         ┌──────────────▼─────────────┐
+                         │        Rust Engine         │
+                         │        engine-core         │
+                         └──────────────┬─────────────┘
+                                        │ gRPC
+                         ┌──────────────▼─────────────┐
+                         │          xray-core         │
+                         └────────────────────────────┘
 ```
 
-**Python مسئول orchestration و منطق سطح بالا است و Rust مسئول engine و عملیات سطح پایین است.**
+Python مسئول orchestration و منطق سطح بالا است و Rust مسئول engine و عملیات سطح پایین است. این مرزبندی از تکرار منطق business در GUI و CLI جلوگیری کرده و boundary مشخصی میان orchestration و engine ایجاد می‌کند.
 
-### 📁 ساختار پروژه
+### 📁 معماری ماژولار
+
+ساختار کلی repository به‌صورت زیر است:
 
 ```text
 bimarz/
@@ -100,31 +109,54 @@ bimarz/
 ├── Cargo.toml
 ├── AGENTS.md
 ├── AI_AGENT_RULES.md
+├── SECURITY.md
+├── CHANGELOG.md
 ├── LICENSE
 └── README.md
 ```
 
-> ساختار بالا نمای کلی repository است. برای جزئیات دقیق هر نسخه، ساختار واقعی فایل‌های repository مرجع اصلی است.
+> ساختار بالا نمای کلی repository است. برای جزئیات دقیق، ساختار واقعی فایل‌های repository و source of truthهای پروژه مرجع اصلی هستند.
+
+### 🗺️ نقشه راه
+
+| فاز | وضعیت | توضیحات |
+|---|---|---|
+| ۰ | ✅ کامل | اسکلت اولیه، build system و proto fetch |
+| ۱ | ✅ کامل | Rust engine-core، gRPC client و VLESS builder |
+| ۲ | ✅ کامل | Profile & Subscription Manager و encrypted storage |
+| ۳ | ✅ کامل | Connection orchestration، health check و failover |
+| ۴ | ✅ کامل | Kill switch، DNS leak protection و platform detection |
+| ۵ | ✅ کامل | CLI نهایی، GUI skeleton، packaging و release workflow |
+| ۶ | ✅ کامل | CI/CD، security audit، quality gates و docs/INSTALL.md |
+| ۷ | 🔄 در حال انجام | Subscription URL parsing، base64 decoding و auto-update profiles |
+| ۸ | ⏳ شروع نشده | Release automation نهایی، PyPI publication و packaging polish |
+
+> **نکته:** وضعیت roadmap باید با implementation واقعی repository هماهنگ بماند. برنامه‌های آینده نباید به‌عنوان قابلیت فعلی مستند شوند.
 
 ### ⚙️ پیش‌نیازها
 
-- Python 3.12 یا جدیدتر
-- Rust و Cargo
-- maturin
-- xray-core
-- Git
+| ابزار | وضعیت | توضیح |
+|---|---|---|
+| Python | 3.12+ | محیط اجرای orchestration |
+| Rust | stable toolchain | ساخت engine-core |
+| Cargo | stable | build و test بخش Rust |
+| maturin | نسخه سازگار با pyproject.toml | build رابط PyO3 |
+| xray-core | مطابق configuration پروژه | engine خارجی موردنیاز برای اتصال واقعی |
+| Git | نسخه سازگار سیستم | دریافت و مدیریت repository |
 
-#### xray-core
+نسخه‌های دقیق dependencyها باید از `pyproject.toml`، `Cargo.toml` و lock/configurationهای repository استخراج شوند و README نباید نسخه‌ای را بدون تطبیق با source of truth تثبیت کند.
 
-BiMarz برای اجرای واقعی اتصال‌ها به **xray-core** نیاز دارد. README نصب خودکار یا نسخه خاصی از xray-core را فرض نمی‌کند؛ نسخه و روش نصب باید مطابق configuration و مستندات فعلی پروژه و سیستم‌عامل مقصد انتخاب شود.
+### 🛰️ xray-core
 
-پس از نصب، دستور زیر برای بررسی وضعیت محیط استفاده می‌شود:
+BiMarz برای اجرای واقعی اتصال‌ها به **xray-core** نیاز دارد. پروژه مسئول نصب خودکار xray-core نیست و روش نصب باید متناسب با سیستم‌عامل و configuration فعلی انتخاب شود.
+
+پس از نصب xray-core، وضعیت محیط را با دستور زیر بررسی کنید:
 
 ```bash
 bimarz doctor
 ```
 
-در صورتی که `doctor` وضعیت xray-core یا executable مربوط به آن را گزارش کند، خروجی آن مرجع اصلی تشخیص محیط اجرایی خواهد بود.
+در صورتی که `doctor` executable یا وضعیت xray-core را گزارش کند، خروجی آن مرجع اصلی تشخیص محیط اجرایی خواهد بود.
 
 ### 📦 نصب از سورس
 
@@ -135,18 +167,18 @@ python -m venv .venv
 source .venv/bin/activate
 python -m pip install -U pip
 python -m pip install maturin
-python -m pip install -e .
+maturin develop --release
 ```
 
-### 🔨 ساخت Rust Extension
+در صورتی که repository به dependency یا proto خارجی مشخصی نیاز داشته باشد، روش build باید مطابق `pyproject.toml`، `Cargo.toml` و documentation فعلی repository انجام شود.
 
-برای build کردن extension مربوط به Rust:
+### 🔨 ساخت Rust Extension
 
 ```bash
 maturin develop --release
 ```
 
-در پروژه‌هایی که build backend مربوط به maturin است، روش build نهایی باید مطابق `pyproject.toml` فعلی repository انجام شود.
+این دستور bridge مربوط به Rust/PyO3 را در محیط توسعه build می‌کند.
 
 ### 🩺 بررسی سلامت نصب
 
@@ -156,28 +188,48 @@ maturin develop --release
 bimarz doctor
 ```
 
-این دستور برای بررسی وضعیت محیط، وابستگی‌ها و اجزای اصلی نصب‌شده استفاده می‌شود.
+برای مشاهده گزینه‌های کامل:
+
+```bash
+bimarz doctor --help
+```
+
+در صورتی که نسخه فعلی CLI گزینه `--xray-bin` را ارائه کند، می‌توان مسیر صریح executable را نیز از طریق همان option مشخص کرد.
 
 ### 👤 مدیریت Profile
 
 BiMarz اطلاعات اتصال را در قالب server profile مدیریت می‌کند.
 
-دستورهای اصلی CLI شامل موارد زیر هستند:
+دستورهای اصلی:
 
 ```bash
 bimarz profile --help
 bimarz profile list
-bimarz profile add
-bimarz profile remove
+bimarz profile add "vless://..."
+bimarz profile remove <id>
 ```
 
-جزئیات argumentها و optionهای هر command را همیشه می‌توان با `--help` مشاهده کرد.
+پشتیبانی دقیق commandها و argumentها باید با `bimarz profile --help` در نسخه نصب‌شده بررسی شود.
+
+### 🔐 رمزنگاری Profile
+
+در implementation مربوط به encrypted profile storage، داده‌های profile با زنجیره رمزنگاری مبتنی بر **PBKDF2-HMAC-SHA256** و **Fernet** محافظت می‌شوند.
+
+برای محیط‌های scripting و CI، در صورتی که implementation فعلی این متغیر را پشتیبانی کند، می‌توان credential موردنیاز را از طریق:
+
+```bash
+export BIMARZ_PROFILE_PASSWORD="..."
+```
+
+تأمین کرد.
+
+> هرگز password، UUID، Reality private key یا سایر credentialهای واقعی را در repository، issue، log عمومی یا README قرار ندهید.
 
 ### 🔗 VLESS Share Link
 
 BiMarz می‌تواند VLESS share link را parse کرده و پارامترهای پشتیبانی‌شده را استخراج کند.
 
-اطلاعات قابل استخراج می‌تواند شامل موارد زیر باشد:
+پارامترهای قابل استخراج بسته به implementation می‌توانند شامل موارد زیر باشند:
 
 - UUID
 - server address
@@ -201,33 +253,44 @@ BiMarz می‌تواند VLESS share link را parse کرده و پارامتر�
 vless://UUID@example.com:443?type=tcp&security=reality&sni=example.com&fp=chrome&pbk=PUBLIC_KEY&sid=SHORT_ID&flow=xtls-rprx-vision#My-Server
 ```
 
-> مقادیر موجود در این نمونه صرفاً placeholder هستند و نباید به عنوان credential واقعی استفاده شوند.
+> مقادیر نمونه placeholder هستند و credential واقعی محسوب نمی‌شوند.
 
 ### 🚀 اتصال
 
-برای مشاهده گزینه‌های اتصال:
+نمونه‌های اصلی استفاده:
 
 ```bash
 bimarz connect --help
+bimarz connect <id>
+bimarz connect <id> --auto-failover
+bimarz connect <id> --killswitch
+bimarz connect <id> --auto-failover --killswitch
 ```
 
-BiMarz هنگام اتصال، configuration موردنیاز xray-core را آماده کرده و outbound فعال را مدیریت می‌کند.
+BiMarz هنگام اتصال configuration موردنیاز xray-core را آماده کرده و outbound فعال را مدیریت می‌کند.
 
-نحوه انتخاب profile فعال و سایر argumentها باید از خروجی `bimarz connect --help` در نسخه نصب‌شده مشخص شود.
+اگر syntax یا optionهای command در نسخه فعلی تغییر کرده باشد، خروجی `bimarz connect --help` مرجع نهایی است.
 
 ### ❤️ Health Check
 
 ```bash
 bimarz healthcheck --help
+bimarz healthcheck
 ```
 
-Health Check برای بررسی وضعیت endpointها و سلامت مسیرهای مدیریت‌شده استفاده می‌شود.
+Health Check برای بررسی وضعیت endpointها و سلامت مسیرهای مدیریت‌شده استفاده می‌شود. در implementation فعلی، health checks می‌توانند به‌صورت موازی برای profileهای مدیریت‌شده اجرا شوند.
 
 ### 🔄 Failover
 
-در صورت از دسترس خارج شدن مسیر فعال، سیستم failover می‌تواند وضعیت مسیرهای مدیریت‌شده را بررسی کرده و بر اساس سیاست‌های پروژه مسیر مناسب بعدی را انتخاب کند.
+Failover در صورت از دسترس خارج شدن مسیر فعال می‌تواند بر اساس policyهای موجود مسیر مناسب بعدی را انتخاب کند.
 
-جزئیات thresholdها، policyها و شرایط تغییر مسیر باید مطابق implementation فعلی پروژه بررسی شود.
+نمونه:
+
+```bash
+bimarz connect <id> --auto-failover
+```
+
+thresholdها، policyها و شرایط دقیق تغییر مسیر باید مطابق implementation و CLI نسخه فعلی بررسی شوند.
 
 ### 🛡️ DNS Leak Protection
 
@@ -235,25 +298,34 @@ BiMarz دارای لایه DNS Guard برای کنترل مسیر DNS queryها 
 
 در configuration مربوط به xray-core می‌توان DNS outbound و routing ruleهای مربوط به DNS را برای جلوگیری از عبور DNS از مسیر کنترل‌نشده ایجاد کرد.
 
+در محیط‌هایی که implementation پروژه از DNS-over-HTTPS استفاده می‌کند، DNS queryها می‌توانند از مسیر تونل مدیریت‌شده عبور داده شوند. رفتار دقیق باید از configuration و implementation فعلی استخراج شود.
+
 هدف این بخش جلوگیری از نشت DNS خارج از مسیر موردنظر orchestration است.
 
 ### 🔒 Kill Switch
 
-```bash
-bimarz killswitch --help
-```
-
 Kill Switch برای جلوگیری از عبور traffic خارج از مسیر proxy در شرایطی که مسیر موردنظر فعال یا سالم نیست طراحی شده است.
 
-فعال‌سازی واقعی Kill Switch به قابلیت‌های سیستم‌عامل، سطح دسترسی و implementation فعلی BiMarz وابسته است.
+نمونه commandهای مدیریتی:
+
+```bash
+bimarz killswitch --help
+bimarz killswitch enable
+bimarz killswitch disable
+bimarz killswitch status
+```
+
+در صورت پشتیبانی نسخه فعلی CLI از تعیین UID مربوط به xray، می‌توان آن را مطابق help همان نسخه مشخص کرد.
+
+در محیط‌هایی مانند Termux، proot یا محیط‌هایی که دسترسی کامل kernel و root ندارند، Kill Switch ممکن است به software fallback محدود شود. بنابراین README نباید وجود kernel-level enforcement را در تمام محیط‌ها تضمین کند.
 
 ### 🖥️ رابط گرافیکی
 
-BiMarz دارای GUI مبتنی بر **PySide6** است.
+BiMarz دارای GUI مبتنی بر PySide6 است.
 
-رابط گرافیکی برای عملیات اصلی مدیریت orchestrator طراحی شده و بسته به وضعیت implementation می‌تواند شامل مدیریت profile، وضعیت اتصال و کنترل عملیات اصلی باشد.
+GUI برای عملیات مدیریتی orchestrator طراحی شده و منطق business نباید به‌صورت جداگانه در GUI تکرار شود.
 
-جزئیات دقیق قابلیت‌های GUI باید از نسخه فعلی کد GUI و release مربوطه استخراج شود.
+بسته به implementation فعلی، GUI می‌تواند شامل مدیریت profile، وضعیت اتصال و کنترل عملیات اصلی orchestrator باشد. جزئیات دقیق قابلیت‌های GUI باید از کد فعلی GUI و release مربوطه استخراج شود.
 
 ### 🧪 تست‌ها
 
@@ -281,8 +353,6 @@ cargo test --manifest-path engine-core/Cargo.toml
 
 ### 🧹 بررسی کیفیت کد
 
-برای بررسی lint و formatting:
-
 ```bash
 ruff check .
 ruff format --check .
@@ -290,67 +360,34 @@ cargo fmt --check
 cargo clippy --all-targets --all-features -- -D warnings
 ```
 
-تمام این بررسی‌ها باید قبل از اعلام یک تغییر به عنوان نسخه سالم یا release-ready اجرا شوند.
+این بررسی‌ها باید قبل از اعلام یک تغییر به‌عنوان نسخه سالم یا release-ready اجرا شوند.
 
-### 🔬 VLESS Builder
+### 🔐 Security
 
-Rust engine دارای builder اختصاصی برای تبدیل پارامترهای VLESS + Reality + Vision به ساختارهای protobuf موردنیاز xray-core است.
-
-این بخش مسئولیت‌هایی مانند موارد زیر را بر عهده دارد:
-
-- VLESS Account
-- VLESS Outbound Config
-- Reality Config
-- Stream Config
-- Sender Config
-- Server Endpoint
-- IPv4 address
-- IPv6 address
-- Domain address
-- Reality public key decoding
-- Reality short ID decoding
-- UUID validation
-- address validation
-- port validation
-
-ورودی‌ها باید پیش از ساخت protobuf اعتبارسنجی شوند تا داده نامعتبر وارد لایه engine نشود.
-
-### 🔌 xray-core Configuration
-
-BiMarz configuration موردنیاز xray-core را بر اساس نیازهای orchestration ایجاد یا مدیریت می‌کند.
-
-اجزای مورد استفاده می‌توانند شامل موارد زیر باشند:
-
-- API
-- HandlerService
-- StatsService
-- SOCKS inbound
-- outbound configuration
-- active outbound routing
-- statistics
-- DNS configuration
-- routing rules
-
-Configuration واقعی باید همیشه با implementation فعلی پروژه تطبیق داده شود.
-
-### 📊 Statistics
-
-برای health monitoring و مشاهده وضعیت اتصال، BiMarz از قابلیت‌های statistics و StatsService مربوط به xray-core استفاده می‌کند.
-
-این اطلاعات می‌تواند برای health monitoring، تشخیص وضعیت endpoint و تصمیم‌گیری در failover مورد استفاده قرار گیرد.
-
-### 🔐 امنیت
-
-امنیت پروژه بر پایه جداسازی مسئولیت‌ها و validation ورودی‌ها طراحی شده است.
+امنیت پروژه بر پایه جداسازی مسئولیت‌ها، validation ورودی‌ها و کنترل دقیق boundaryهای Python/Rust طراحی شده است.
 
 - Python مسئول orchestration است.
 - Rust مسئول engine و عملیات سطح پایین است.
 - ورودی‌ها پیش از ساخت protobuf اعتبارسنجی می‌شوند.
-- ورودی خام کاربر نباید به عنوان command سیستم‌عامل اجرا شود.
+- ورودی خام کاربر نباید به‌عنوان command سیستم‌عامل اجرا شود.
 - خطاها باید به شکل ساختاریافته مدیریت شوند.
 - API contractها باید تست شوند.
 - credentialها و داده‌های حساس نباید در repository قرار بگیرند.
 - Reality private key نباید در repository، log یا فایل عمومی ذخیره یا منتشر شود.
+
+### 🔎 Security Audits
+
+pipeline امنیتی پروژه شامل بررسی dependencyها و کد با ابزارهای زیر است:
+
+- `cargo-audit` برای dependencyهای Rust
+- `pip-audit` برای dependencyهای Python
+- `bandit` برای بررسی الگوهای امنیتی Python
+
+در وضعیت فعلی Phase 6، دو advisory شناخته‌شده مربوط به PyO3 یعنی `RUSTSEC-2025-0020` و `RUSTSEC-2026-0177` مستند شده‌اند.
+
+این موارد در `SECURITY.md` با disposition مربوطه ثبت شده‌اند. وجود advisory در dependency به‌تنهایی به معنی استفاده BiMarz از API آسیب‌دیده نیست و وضعیت واقعی باید از مستندات security project و dependency tree بررسی شود.
+
+PyO3 به نسخه 0.29.2 ارتقا یافته و این migration در چارچوب Phase 6 با build، تست، lint، بسته‌بندی و audit اعتبارسنجی شده است.
 
 ### 🤖 قوانین توسعه
 
@@ -359,6 +396,7 @@ Configuration واقعی باید همیشه با implementation فعلی پرو
 ```text
 AGENTS.md
 AI_AGENT_RULES.md
+SECURITY.md
 ```
 
 این اسناد مرجع اصلی قوانین پروژه برای موارد زیر هستند:
@@ -377,26 +415,48 @@ README جایگزین این اسناد نیست و در صورت وجود تع�
 
 ### 📋 Source of Truth
 
-برای اطلاعاتی که ممکن است با تغییر کد تغییر کنند، منبع اصلی repository است:
+برای اطلاعاتی که ممکن است با تغییر کد تغییر کنند، منابع زیر مرجع اصلی هستند:
 
 1. `pyproject.toml` برای metadata و Python packaging
 2. `Cargo.toml` برای Rust crate و dependencyهای Rust
 3. CLI implementation برای commandها و optionها
 4. `AGENTS.md` و `AI_AGENT_RULES.md` برای قوانین توسعه
-5. `LICENSE` برای مجوز پروژه
-6. CI workflows برای pipelineهای build و test
+5. `SECURITY.md` برای یافته‌های امنیتی و disposition
+6. `LICENSE` برای مجوز پروژه
+7. CI workflows برای pipelineهای build و test
+8. implementation واقعی برای رفتار runtime
 
-README باید هنگام تغییر این منابع به‌روزرسانی شود.
+README باید هنگام تغییر این منابع بررسی و در صورت نیاز به‌روزرسانی شود.
 
 ### 📦 نسخه پروژه
 
-نسخه باید از metadata رسمی پروژه و source of truth تعریف‌شده در repository پیروی کند.
+نسخه پروژه باید از metadata رسمی repository پیروی کند.
 
 ```text
 BiMarz 0.2.0
 ```
 
 این مقدار باید هنگام release با version واقعی package و engine تطبیق داده شود.
+
+### 🖥️ پلتفرم‌های پشتیبانی‌شده
+
+پشتیبانی واقعی platform به implementation و سطح دسترسی محیط بستگی دارد.
+
+| محیط | تشخیص | Kill Switch | وضعیت |
+|---|---|---|---|
+| Arch Linux / desktop Linux | خودکار یا platform-specific | وابسته به privilege | پشتیبانی‌شده در محیط مناسب |
+| Kali NetHunter + Termux | platform-aware | ممکن است software fallback باشد | وابسته به محیط |
+| Termux | platform-aware | محدود به capability محیط | وابسته به محیط |
+| WSL | environment-dependent | وابسته به privilege و network stack | وابسته به محیط |
+| سایر Linuxها | generic detection | وابسته به محیط | implementation-dependent |
+
+> نباید قابلیت kernel-level Kill Switch در محیطی که root یا دسترسی لازم به kernel ندارد تضمین شود.
+
+### 📜 CHANGELOG
+
+تغییرات مهم فنی، تصمیمات معماری و bug fixهای مهم پروژه در `CHANGELOG.md` ثبت می‌شوند.
+
+README نمای کلی پروژه را ارائه می‌کند و `CHANGELOG.md` برای تاریخچه تغییرات implementation و releaseها مرجع مناسب‌تری است.
 
 ### 🗑️ حذف نصب
 
@@ -407,26 +467,45 @@ deactivate
 rm -rf .venv
 ```
 
-برای حذف package نصب‌شده به صورت editable:
+برای حذف package نصب‌شده به‌صورت editable:
 
 ```bash
 python -m pip uninstall bimarz
 ```
 
-در صورت نیاز می‌توان repository محلی را نیز حذف کرد:
+برای حذف داده‌های کاربر، در صورتی که این مسیر توسط نسخه فعلی استفاده شود:
+
+```bash
+rm -rf ~/.config/bimarz
+```
+
+برای حذف repository محلی:
 
 ```bash
 cd ..
 rm -rf bimarz
 ```
 
-> حذف repository باعث حذف source code محلی می‌شود. قبل از اجرای `rm -rf` از مسیر فعلی اطمینان حاصل کنید.
+> حذف repository و `.venv` باعث حذف source code و محیط توسعه محلی می‌شود. حذف `~/.config/bimarz` نیز ممکن است profileها، credentialهای رمزنگاری‌شده و logهای محلی را حذف کند. قبل از اجرای `rm -rf` مسیر و داده‌های موردنیاز را بررسی کنید.
+
+### 🤝 مشارکت
+
+Issue و Pull Request برای توسعه پروژه قابل استفاده هستند. قبل از ارسال تغییر، بررسی‌های کیفیت و تست‌های repository را اجرا کنید.
+
+```bash
+ruff check .
+ruff format --check .
+pytest
+cargo fmt --check
+cargo test --manifest-path engine-core/Cargo.toml
+cargo clippy --all-targets --all-features -- -D warnings
+```
+
+قبل از ایجاد Pull Request همچنین قوانین `AGENTS.md` و `AI_AGENT_RULES.md` و الزامات امنیتی `SECURITY.md` را بررسی کنید.
 
 ### 📜 مجوز
 
-مجوز رسمی پروژه در فایل `LICENSE` repository تعریف شده است.
-
-همیشه متن و نوع مجوز موجود در `LICENSE` را مرجع اصلی بدانید و از فرض کردن نوع license بر اساس README خودداری کنید.
+مجوز رسمی پروژه در فایل `LICENSE` repository تعریف شده است. `LICENSE` منبع اصلی برای متن و شرایط حقوقی مجوز است.
 
 ### 👨‍💻 توسعه‌دهنده
 
@@ -438,11 +517,11 @@ GitHub: `msoleimani62`
 
 ### 📖 Overview
 
-BiMarz is a cross-platform orchestration layer around **xray-core** for managing **VLESS + Reality + XTLS Vision** connections.
+BiMarz is a cross-platform orchestration layer around xray-core for managing VLESS + Reality + XTLS Vision connections.
 
-The project separates high-level orchestration from low-level engine functionality by using **Python** for orchestration and **Rust** for the engine layer.
+The project separates high-level orchestration from low-level engine functionality by using Python for orchestration and Rust for the engine layer.
 
-Python handles profiles, health monitoring, failover, DNS-related orchestration, CLI and GUI operations, while Rust handles the engine layer and low-level functionality through a PyO3 boundary.
+Python handles profiles, subscriptions, health monitoring, failover, DNS-related orchestration, CLI and GUI operations, while Rust handles the engine layer and low-level functionality through a PyO3 boundary.
 
 ### ✨ Features
 
@@ -456,6 +535,8 @@ Python handles profiles, health monitoring, failover, DNS-related orchestration,
 - Health checks
 - Failover
 - Server profile management
+- Subscription management where implemented
+- Secure profile storage where implemented
 - DNS leak protection
 - Kill switch
 - Command-line interface
@@ -464,36 +545,37 @@ Python handles profiles, health monitoring, failover, DNS-related orchestration,
 - Python and Rust tests
 - Unit and integration testing
 - Linting and formatting
-- CI and release-related workflows
+- CI/CD and release-related workflows
+- Dependency security auditing with cargo-audit, pip-audit and bandit
 
 ### 🏗️ Architecture
 
 ```text
-                         ┌──────────────────────┐
-                         │      BiMarz CLI      │
-                         └──────────┬───────────┘
-                                    │
-                         ┌──────────▼───────────┐
-                         │ Python Orchestrator  │
-                         │                      │
-                         │ profiles             │
-                         │ health               │
-                         │ failover             │
-                         │ DNS                  │
-                         │ CLI / GUI            │
-                         └──────────┬───────────┘
-                                    │ PyO3
-                         ┌──────────▼───────────┐
-                         │     Rust Engine      │
-                         │     engine-core      │
-                         └──────────┬───────────┘
-                                    │ gRPC
-                         ┌──────────▼───────────┐
-                         │      xray-core       │
-                         └──────────────────────┘
+                         ┌────────────────────────────┐
+                         │         BiMarz CLI         │
+                         └──────────────┬─────────────┘
+                                        │
+                         ┌──────────────▼─────────────┐
+                         │     Python Orchestrator    │
+                         │                            │
+                         │ profiles                   │
+                         │ subscriptions              │
+                         │ health / failover          │
+                         │ DNS / kill switch          │
+                         │ CLI / GUI                  │
+                         └──────────────┬─────────────┘
+                                        │ PyO3
+                         ┌──────────────▼─────────────┐
+                         │        Rust Engine         │
+                         │        engine-core         │
+                         └──────────────┬─────────────┘
+                                        │ gRPC
+                         ┌──────────────▼─────────────┐
+                         │          xray-core         │
+                         └────────────────────────────┘
 ```
 
-Python owns orchestration and high-level logic. Rust owns the engine and low-level operations.
+Python owns orchestration and high-level logic. Rust owns the engine and low-level operations. This boundary keeps orchestration concerns separate from engine functionality and avoids duplicating business logic between CLI and GUI.
 
 ### 📁 Project Structure
 
@@ -525,31 +607,52 @@ bimarz/
 ├── Cargo.toml
 ├── AGENTS.md
 ├── AI_AGENT_RULES.md
+├── SECURITY.md
+├── CHANGELOG.md
 ├── LICENSE
 └── README.md
 ```
 
-The repository structure above is a high-level overview. The actual repository remains the authoritative source for the exact file layout.
+The structure above is a high-level repository overview. The actual repository and its source-of-truth files remain authoritative for exact file layout and implementation details.
+
+### 🗺️ Roadmap
+
+| Phase | Status | Description |
+|---|---|---|
+| 0 | ✅ Complete | Initial skeleton, build system and proto fetch |
+| 1 | ✅ Complete | Rust engine-core, gRPC client and VLESS builder |
+| 2 | ✅ Complete | Profile & Subscription Manager and encrypted storage |
+| 3 | ✅ Complete | Connection orchestration, health check and failover |
+| 4 | ✅ Complete | Kill switch, DNS leak protection and platform detection |
+| 5 | ✅ Complete | Final CLI, GUI skeleton, packaging and release workflow |
+| 6 | ✅ Complete | CI/CD, security audit, quality gates and docs/INSTALL.md |
+| 7 | 🔄 In Progress | Subscription URL parsing, base64 decoding and auto-update profiles |
+| 8 | ⏳ Not Started | Final release automation, PyPI publication and packaging polish |
+
+> Roadmap entries must reflect verified implementation status. Planned functionality must not be documented as currently available.
 
 ### ⚙️ Requirements
 
-- Python 3.12 or newer
-- Rust and Cargo
-- maturin
-- xray-core
-- Git
+| Tool | Requirement | Notes |
+|---|---|---|
+| Python | 3.12+ | orchestration runtime |
+| Rust | stable toolchain | engine-core build |
+| Cargo | stable | Rust build and tests |
+| maturin | compatible with pyproject.toml | PyO3 bridge build |
+| xray-core | project-compatible configuration | external runtime engine |
+| Git | compatible system version | repository management |
 
-#### xray-core
+Exact dependency versions must be verified against `pyproject.toml`, `Cargo.toml` and the repository configuration rather than being inferred from this README.
 
-BiMarz requires **xray-core** for actual connection operation. This README does not assume a specific installation method or silently install xray-core. The required version and installation method should follow the current project configuration and the target operating system.
+### 🛰️ xray-core
+
+BiMarz requires xray-core for actual connection operation. BiMarz does not silently install xray-core. Installation and version selection should follow the current project configuration and the target operating system.
 
 After installation, run:
 
 ```bash
 bimarz doctor
 ```
-
-The doctor command should be used as the primary environment check when supported by the current implementation.
 
 ### 📦 Installation from Source
 
@@ -560,8 +663,10 @@ python -m venv .venv
 source .venv/bin/activate
 python -m pip install -U pip
 python -m pip install maturin
-python -m pip install -e .
+maturin develop --release
 ```
+
+If the current repository requires additional proto files or external build inputs, follow the procedures defined by the current project configuration and documentation.
 
 ### 🔨 Build the Rust Extension
 
@@ -569,15 +674,16 @@ python -m pip install -e .
 maturin develop --release
 ```
 
-The final build procedure should always follow the current `pyproject.toml` and maturin configuration.
+This builds the Rust/PyO3 extension for the development environment.
 
 ### 🩺 Installation Check
 
 ```bash
 bimarz doctor
+bimarz doctor --help
 ```
 
-Use this command to inspect the local environment, dependencies and available project components.
+Use `doctor` as the primary environment diagnostic when supported by the installed implementation.
 
 ### 👤 Profile Management
 
@@ -586,11 +692,23 @@ BiMarz manages connection information through server profiles.
 ```bash
 bimarz profile --help
 bimarz profile list
-bimarz profile add
-bimarz profile remove
+bimarz profile add "vless://..."
+bimarz profile remove <id>
 ```
 
-Command-specific arguments and options should always be verified with the installed CLI using `--help`.
+The installed CLI remains authoritative for exact arguments and options.
+
+### 🔐 Profile Encryption
+
+Where encrypted profile storage is enabled by the current implementation, profile data is protected using a **PBKDF2-HMAC-SHA256** and **Fernet** based encryption chain.
+
+For scripting and CI, if supported by the current implementation, the profile password can be supplied through:
+
+```bash
+export BIMARZ_PROFILE_PASSWORD="..."
+```
+
+Never commit passwords, UUIDs, Reality private keys or other real credentials.
 
 ### 🔗 VLESS Share Links
 
@@ -602,55 +720,71 @@ Example:
 vless://UUID@example.com:443?type=tcp&security=reality&sni=example.com&fp=chrome&pbk=PUBLIC_KEY&sid=SHORT_ID&flow=xtls-rprx-vision#My-Server
 ```
 
-The values in this example are placeholders and are not real credentials.
+The values above are placeholders and are not real credentials.
 
 ### 🚀 Connect
 
 ```bash
 bimarz connect --help
+bimarz connect <id>
+bimarz connect <id> --auto-failover
+bimarz connect <id> --killswitch
+bimarz connect <id> --auto-failover --killswitch
 ```
 
 BiMarz prepares the required xray-core configuration and manages the active outbound during connection operations.
 
-The exact profile-selection mechanism and command arguments must be obtained from the installed version using `bimarz connect --help`.
+The installed CLI must be used to verify the exact profile-selection mechanism and supported options.
 
 ### ❤️ Health Check
 
 ```bash
 bimarz healthcheck --help
+bimarz healthcheck
 ```
 
-Health checks are used to monitor managed endpoints and connection health.
+Health checks monitor managed endpoints and connection health. The current implementation may execute checks concurrently across managed profiles.
 
 ### 🔄 Failover
 
 BiMarz can monitor managed endpoints and switch away from an unavailable active route when the configured failover conditions are met.
 
-The exact thresholds, policies and switching conditions depend on the current implementation.
+```bash
+bimarz connect <id> --auto-failover
+```
+
+Exact thresholds, policies and switching conditions depend on the current implementation.
 
 ### 🛡️ DNS Leak Protection
 
 BiMarz provides a DNS Guard layer intended to control DNS query routing.
 
-The xray-core configuration may include DNS outbounds and routing rules for DNS traffic so that DNS queries do not escape through an uncontrolled path.
+The xray-core configuration may include DNS outbounds and routing rules so DNS queries do not escape through an uncontrolled path.
+
+Where the current implementation uses DNS-over-HTTPS, DNS traffic can be routed through the managed tunnel. Exact behavior must be verified against the current configuration and implementation.
 
 ### 🔒 Kill Switch
 
-```bash
-bimarz killswitch --help
-```
-
 The kill switch is designed to prevent traffic from bypassing the intended proxy path when the managed route is unavailable or inactive.
 
-Actual kill-switch behavior depends on the operating system, required privileges and the current implementation.
+```bash
+bimarz killswitch --help
+bimarz killswitch enable
+bimarz killswitch disable
+bimarz killswitch status
+```
+
+Where supported by the installed CLI, an xray UID can be provided according to the command help.
+
+Actual kernel-level behavior depends on the operating system, privileges and network environment. Termux, proot and similar restricted environments may require a software fallback.
 
 ### 🖥️ Graphical Interface
 
-BiMarz includes a **PySide6-based GUI** for core orchestrator operations.
+BiMarz includes a PySide6-based GUI for orchestrator operations.
 
-Depending on the current implementation, the GUI may provide profile management, connection status and control over core orchestration operations.
+The GUI should remain a presentation and control layer and should not duplicate business logic implemented by the orchestrator services.
 
-The current GUI implementation remains the authoritative source for its exact feature set.
+The exact GUI feature set must be verified against the current GUI implementation.
 
 ### 🧪 Testing
 
@@ -687,41 +821,9 @@ cargo clippy --all-targets --all-features -- -D warnings
 
 These checks should pass before a change is considered release-ready.
 
-### 🔬 VLESS Builder
-
-The Rust engine contains a dedicated builder for converting VLESS + Reality + Vision parameters into protobuf structures required by xray-core.
-
-It handles VLESS accounts, outbound configuration, Reality configuration, stream settings, sender settings, server endpoints, IPv4/IPv6/domain addresses, Reality key decoding, short-ID decoding and input validation.
-
-Invalid inputs should be rejected before protobuf construction.
-
-### 🔌 xray-core Configuration
-
-BiMarz manages the xray-core configuration required by its orchestration layer.
-
-Depending on the current implementation, this can include:
-
-- API
-- HandlerService
-- StatsService
-- SOCKS inbound
-- outbound configuration
-- active outbound routing
-- statistics
-- DNS configuration
-- routing rules
-
-The implementation in the repository is the authoritative source for the exact generated configuration.
-
-### 📊 Statistics
-
-BiMarz uses xray-core statistics and StatsService capabilities for connection monitoring and health-related decisions.
-
-Statistics may be used by health monitoring and failover logic to evaluate endpoint state.
-
 ### 🔐 Security
 
-The security model is based on separation of responsibilities and strict input validation.
+The security model is based on separation of responsibilities, strict input validation and explicit Python/Rust boundaries.
 
 - Python owns orchestration.
 - Rust owns the engine layer.
@@ -732,6 +834,20 @@ The security model is based on separation of responsibilities and strict input v
 - Credentials and sensitive data must not be committed to the repository.
 - Reality private keys must never be stored in the repository, logs or public files.
 
+### 🔎 Security Auditing
+
+Security checks include:
+
+- `cargo-audit` for Rust dependency advisories
+- `pip-audit` for Python dependency advisories
+- `bandit` for Python security checks
+
+Phase 6 includes two known PyO3 advisories: `RUSTSEC-2025-0020` and `RUSTSEC-2026-0177`.
+
+These findings are documented in `SECURITY.md` with their current disposition. An advisory in a dependency does not by itself prove that the affected API is used by BiMarz; the dependency tree and security documentation remain authoritative.
+
+PyO3 has been upgraded to 0.29.2 as part of the Phase 6 security migration.
+
 ### 🤖 Development Rules
 
 Before modifying the repository, developers and AI agents must read:
@@ -739,24 +855,27 @@ Before modifying the repository, developers and AI agents must read:
 ```text
 AGENTS.md
 AI_AGENT_RULES.md
+SECURITY.md
 ```
 
-These documents define the project rules for architecture, Python/Rust boundaries, PyO3 contracts, testing, linting, security, dependencies and development workflow.
+These documents define project rules for architecture, Python/Rust boundaries, PyO3 contracts, testing, linting, security, dependency management and development workflow.
 
 The README does not replace these documents. If a conflict exists, the repository constitution and binding development rules take precedence.
 
 ### 📋 Source of Truth
 
-The following files are authoritative for information that changes with the implementation:
+The following sources are authoritative for information that changes with implementation:
 
 1. `pyproject.toml` for Python metadata and packaging
 2. `Cargo.toml` for Rust package configuration and dependencies
 3. CLI implementation for commands and options
 4. `AGENTS.md` and `AI_AGENT_RULES.md` for development rules
-5. `LICENSE` for the project license
-6. CI workflows for build and test pipelines
+5. `SECURITY.md` for security findings and disposition
+6. `LICENSE` for licensing terms
+7. CI workflows for build and test pipelines
+8. Runtime implementation for actual behavior
 
-The README should be updated whenever these sources change.
+The README should be reviewed whenever these sources change.
 
 ### 📦 Current Version
 
@@ -767,6 +886,26 @@ BiMarz 0.2.0
 ```
 
 This value must be verified against the actual package and engine versions when preparing a release.
+
+### 🖥️ Supported Platforms
+
+Actual platform support depends on the implementation and privileges available in the target environment.
+
+| Environment | Detection | Kill Switch | Status |
+|---|---|---|---|
+| Arch Linux / desktop Linux | automatic or platform-specific | privilege-dependent | supported in suitable environments |
+| Kali NetHunter + Termux | platform-aware | may use software fallback | environment-dependent |
+| Termux | platform-aware | limited by environment capabilities | environment-dependent |
+| WSL | environment-dependent | privilege and network-stack dependent | environment-dependent |
+| Other Linux distributions | generic detection | environment-dependent | implementation-dependent |
+
+> Kernel-level kill-switch behavior must not be assumed in environments without the required root and kernel capabilities.
+
+### 📜 CHANGELOG
+
+Important technical changes, architectural decisions and significant bug fixes are recorded in `CHANGELOG.md`.
+
+The README provides the current project overview, while `CHANGELOG.md` is the appropriate reference for implementation and release history.
 
 ### 🗑️ Uninstallation
 
@@ -783,20 +922,39 @@ For an editable package installation:
 python -m pip uninstall bimarz
 ```
 
-If the local repository is no longer needed:
+For user data, when this path is used by the current implementation:
+
+```bash
+rm -rf ~/.config/bimarz
+```
+
+To remove the local repository:
 
 ```bash
 cd ..
 rm -rf bimarz
 ```
 
-Be certain about the current directory before running `rm -rf`.
+> Removing `~/.config/bimarz` may delete local profiles, encrypted credentials and logs. Verify the path before running `rm -rf`.
+
+### 🤝 Contributing
+
+Issues and Pull Requests are welcome. Before submitting a change, run the repository quality checks and tests.
+
+```bash
+ruff check .
+ruff format --check .
+pytest
+cargo fmt --check
+cargo test --manifest-path engine-core/Cargo.toml
+cargo clippy --all-targets --all-features -- -D warnings
+```
+
+Review `AGENTS.md`, `AI_AGENT_RULES.md` and `SECURITY.md` before opening a Pull Request.
 
 ### 📜 License
 
-The official project license is defined by the `LICENSE` file in the repository.
-
-The `LICENSE` file is the authoritative source for the exact license terms.
+The official project license is defined by the `LICENSE` file in the repository. The `LICENSE` file is the authoritative source for the exact license terms.
 
 ### 👨‍💻 Developer
 
@@ -804,15 +962,13 @@ GitHub: `msoleimani62`
 
 ---
 
-## 📌 Documentation Policy
+### 📌 Documentation Policy
 
 README content must describe the implementation that actually exists in the repository. Features, commands, versions, dependencies and architecture must not be documented as available merely because they are planned.
 
-When implementation and documentation diverge, the implementation must be reviewed first and the README must then be updated to match the verified behavior.
+When implementation and documentation diverge, the implementation must be reviewed first and the README must then be updated to match verified behavior.
 
----
-
-## 📄 Quick Reference
+### 📎 Quick Reference
 
 ```text
 Project       : BiMarz
@@ -826,3 +982,12 @@ Rust          : stable toolchain
 License       : See LICENSE
 GitHub        : msoleimani62
 ```
+
+### 🔗 Useful Repository Documents
+
+- `AGENTS.md` — project architecture and repository constitution
+- `AI_AGENT_RULES.md` — binding rules for AI agents and developers
+- `SECURITY.md` — security findings, advisories and dispositions
+- `CHANGELOG.md` — technical and release history
+- `docs/INSTALL.md` — detailed installation documentation
+- `LICENSE` — authoritative license terms

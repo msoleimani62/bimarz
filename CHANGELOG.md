@@ -8,27 +8,27 @@ This file follows the [Keep a Changelog](https://keepachangelog.com/) format.
 ### Added — افزوده شد
 
 - `docs/INSTALL.md`: step-by-step bilingual installation guide for non-technical users.
-- `.github/workflows/security.yml`: scheduled dependency security auditing for Rust and Python dependencies using `cargo-audit` and `pip-audit`.
+- `.github/workflows/security.yml`: scheduled dependency security auditing for Rust and Python dependencies using `cargo-audit`, `pip-audit`, and `bandit`.
+- `SECURITY.md`: documented disposition for known PyO3 advisories (RUSTSEC-2025-0020, RUSTSEC-2026-0177) per project Constitution.
 
 ### Changed — تغییر یافت
 
-- `README.md`: roadmap synced to the actual project state, with phases 0–5 complete, phase 6 in progress, and phases 7–8 not started; architecture documentation updated to reflect the modular `cli.py` refactor.
+- `README.md`: roadmap synced to reflect phase 6 completion; phase 6 security/CI tasks marked done, phase 7 (Subscription Manager) marked in-progress.
 - `scripts/build-release.sh`: added a `cargo clippy` validation step before building and added maturin version validation.
-- `tests/test_integration.py`: removed two obsolete skipped integration tests that no longer represent the supported project scope or provide unique coverage.
-  - Removed `test_add_and_remove_outbound_via_grpc`, which referenced the unsupported `add_freedom_outbound` API.
-  - Removed `test_get_stats_on_existing_direct_outbound`, which was flaky and duplicated coverage already provided by `tests/test_integration_xray.py`.
 
 ### Security — امنیت
 
 - Added scheduled dependency auditing to the GitHub Actions CI pipeline as part of phase 6.
 - Rust dependencies are audited with `cargo-audit`.
 - Installed Python dependencies are audited with `pip-audit`.
+- Python source is scanned with `bandit` in CI.
+- Known PyO3 advisories are dispositioned as **UPGRADED** after migrating from PyO3 0.22.x to PyO3 0.29.2. The affected APIs are not used in this codebase.
 
 ### Testing — تست
 
 - Preserved existing integration assertions and active test coverage while removing only obsolete skipped tests.
 - No public API was changed as part of the phase 6 test and CI cleanup.
-- No runtime dependency was added to the project; `cargo-audit` and `pip-audit` are CI-only security tooling.
+- No runtime dependency was added to the project; `cargo-audit`, `pip-audit`, and `bandit` are CI-only security tooling.
 
 ## [0.2.0] — 2026-08-03
 
