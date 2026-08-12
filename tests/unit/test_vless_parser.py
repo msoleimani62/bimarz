@@ -1,14 +1,26 @@
+"""Unit tests for the VLESS share-link parser."""
+# تست‌های واحد برای پارسر لینک اشتراک VLESS
+
 from __future__ import annotations
 
 import pytest
 from bimarz.parsers.vless import (
     MalformedVlessError,
     UnsupportedVlessError,
+    VlessParseError,
     parse_vless_link,
 )
 
+# A stable UUID used by all parser test cases.
+# یک UUID ثابت برای تمام تست‌های پارسر.
 VALID_UUID = "11111111-1111-4111-8111-111111111111"
+
+# A stable Reality public key used by valid parser fixtures.
+# یک کلید عمومی ثابت Reality برای fixtureهای معتبر پارسر.
 PUBLIC_KEY = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk"
+
+# A well-formed VLESS Reality Vision URI used as the baseline fixture.
+# یک URI معتبر VLESS Reality Vision به عنوان fixture پایه.
 VALID_VLESS_LINK = (
     f"vless://{VALID_UUID}@example.com:443"
     "?type=tcp"
@@ -51,6 +63,115 @@ def test_parse_vless_preserves_query_parameters() -> None:
     assert outbound["encryption"] == "none"
 
 
+@pytest.mark.parametrize(
+    "link",
+    [
+        "",
+        "vless://",
+        f"vless://@example.com:443?security=reality&flow=xtls-rprx-vision&pbk={PUBLIC_KEY}",
+        f"vless://not-a-uuid@example.com:443?security=reality&flow=xtls-rprx-vision&pbk={PUBLIC_KEY}",
+    ],
+)
+def test_malformed_vless_links_are_rejected(link: str) -> None:
+    """Reject malformed VLESS URIs."""
+    # URIهای ناقص یا دارای ساختار نامعتبر VLESS باید رد شوند.
+    with pytest.raises(MalformedVlessError):
+        parse_vless_link(link)
+
+
+def test_scheme_less_link_is_rejected() -> None:
+    """Reject bare text without a vless scheme."""
+    # متن بدون scheme مربوط به VLESS باید رد شود.
+    with pytest.raises(UnsupportedVlessError):
+        parse_vless_link("invalid")
+
+
+@pytest.mark.parametrize(
+    "link",
+    [
+        "http://example.com",
+        f"vmess://{VALID_UUID}@example.com:443?security=reality&flow=xtls-rprx-vision&pbk={PUBLIC_KEY}",
+    ],
+)
+def test_unsupported_scheme_is_rejected(link: str) -> None:
+    """Reject non-vless schemes as unsupported."""
+    # schemeهای غیر VLESS باید به عنوان پشتیبانی‌نشده رد شوند.
+    with pytest.raises(UnsupportedVlessError):
+        parse_vless_link(link)
+
+
+def test_rejects_non_reality_security() -> None:
+    """Reject security values other than reality."""
+    # هر security غیر از reality باید رد شود.
+    link = f"vless://{VALID_UUID}@example.com:443?security=tls&flow=xtls-rprx-vision&pbk=pk"
+
+    with pytest.raises(UnsupportedVlessError):
+        parse_vless_link(link)
+
+
+def test_rejects_non_vision_flow() -> None:
+    """Reject flow values other than xtls-rprx-vision."""
+    # هر flow غیر از xtls-rprx-vision باید رد شود.
+    link = f"vless://{VALID_UUID}@example.com:443?security=reality&flow=none&pbk=pk"
+
+    with pytest.raises(UnsupportedVlessError):
+        parse_vless_link(link)
+
+
+def test_rejects_missing_public_key() -> None:
+    """Reject Reality links that omit pbk."""
+    # لینک Reality بدون pbk باید رد شود.
+    link = f"vless://{VALID_UUID}@example.com:443?security=reality&flow=xtls-rprx-vision"
+
+    with pytest.raises(MalformedVlessError):
+        parse_vless_link(link)
+
+
+def test_rejects_missing_security() -> None:
+    """Reject links that omit security=reality."""
+    # لینک بدون security=reality باید رد شود.
+    link = f"vless://{VALID_UUID}@example.com:443?flow=xtls-rprx-vision&pbk={PUBLIC_KEY}"
+
+    with pytest.raises(UnsupportedVlessError):
+        parse_vless_link(link)
+
+
+def test_rejects_missing_flow() -> None:
+    """Reject links that omit the required Vision flow."""
+    # لینک بدون flow مربوط به Vision باید رد شود.
+    link = f"vless://{VALID_UUID}@example.com:443?security=reality&pbk={PUBLIC_KEY}"
+
+    with pytest.raises(UnsupportedVlessError):
+        parse_vless_link(link)
+
+
+def test_spider_x_and_short_id_preserved() -> None:
+    """Preserve sid and spx parameters."""
+    # پارامترهای sid و spx باید حفظ شوند.
+    link = (
+        f"vless://{VALID_UUID}@example.com:443"
+        "?security=reality"
+        "&flow=xtls-rprx-vision"
+        f"&pbk={PUBLIC_KEY}"
+        "&sid=a1b2"
+        "&spx=%2Fpath"
+    )
+
+    result = parse_vless_link(link)
+    outbound = result.outbound_config
+
+    assert outbound["shortId"] == "a1b2"
+    assert outbound["spiderX"] == "/path"
+
+
+def test_parse_errors_are_value_error_subclasses() -> None:
+    """Ensure parse errors remain compatible with ValueError handlers."""
+    # خطاهای پارس باید زیرکلاس ValueError بمانند تا با handlerهای موجود سازگار باشند.
+    assert issubclass(VlessParseError, ValueError)
+    assert issubclass(MalformedVlessError, VlessParseError)
+    assert issubclass(UnsupportedVlessError, VlessParseError)
+
+
 def test_parse_vless_uses_default_port() -> None:
     """Use port 443 when the URI does not specify a port."""
     # اگر پورت مشخص نشده باشد، پورت پیش‌فرض 443 استفاده می‌شود.
@@ -58,7 +179,9 @@ def test_parse_vless_uses_default_port() -> None:
 
     result = parse_vless_link(link)
 
+    assert result.outbound_config["address"] == "example.com"
     assert result.outbound_config["port"] == 443
+    assert result.remark == "example.com:443"
 
 
 def test_parse_vless_without_fragment() -> None:
@@ -68,6 +191,8 @@ def test_parse_vless_without_fragment() -> None:
 
     result = parse_vless_link(link)
 
+    assert result.outbound_config["address"] == "127.0.0.1"
+    assert result.outbound_config["port"] == 8443
     assert result.remark == "127.0.0.1:8443"
 
 
@@ -96,9 +221,10 @@ def test_parse_vless_decodes_query_values() -> None:
     )
 
     result = parse_vless_link(link)
+    outbound = result.outbound_config
 
-    assert result.outbound_config["sni"] == "server.example.com"
-    assert result.outbound_config["path"] == "/api/vless"
+    assert outbound["sni"] == "server.example.com"
+    assert outbound["path"] == "/api/vless"
 
 
 def test_parse_vless_uses_host_as_sni_fallback() -> None:
@@ -114,6 +240,7 @@ def test_parse_vless_uses_host_as_sni_fallback() -> None:
 
     result = parse_vless_link(link)
 
+    assert result.outbound_config["host"] == "server.example.com"
     assert result.outbound_config["sni"] == "server.example.com"
 
 
@@ -125,18 +252,20 @@ def test_parse_vless_generates_unique_profile_ids() -> None:
 
     assert first.profile_id != second.profile_id
     assert first.tag != second.tag
+    assert first.profile_id == first.tag
+    assert second.profile_id == second.tag
 
 
 @pytest.mark.parametrize(
     ("link", "expected_port"),
     [
         (
-            (f"vless://{VALID_UUID}@example.com:1?security=reality&flow=xtls-rprx-vision&pbk={PUBLIC_KEY}"),
+            f"vless://{VALID_UUID}@example.com:1?security=reality&flow=xtls-rprx-vision&pbk={PUBLIC_KEY}",
             1,
         ),
         (VALID_VLESS_LINK, 443),
         (
-            (f"vless://{VALID_UUID}@example.com:65535?security=reality&flow=xtls-rprx-vision&pbk={PUBLIC_KEY}"),
+            f"vless://{VALID_UUID}@example.com:65535?security=reality&flow=xtls-rprx-vision&pbk={PUBLIC_KEY}",
             65535,
         ),
     ],
@@ -152,6 +281,21 @@ def test_parse_vless_accepts_valid_port_range(
     assert result.outbound_config["port"] == expected_port
 
 
+@pytest.mark.parametrize(
+    "link",
+    [
+        (f"vless://{VALID_UUID}@example.com:0?security=reality&flow=xtls-rprx-vision&pbk={PUBLIC_KEY}"),
+        (f"vless://{VALID_UUID}@example.com:65536?security=reality&flow=xtls-rprx-vision&pbk={PUBLIC_KEY}"),
+        (f"vless://{VALID_UUID}@example.com:not-a-port?security=reality&flow=xtls-rprx-vision&pbk={PUBLIC_KEY}"),
+    ],
+)
+def test_parse_vless_rejects_invalid_ports(link: str) -> None:
+    """Reject invalid port values."""
+    # مقادیر نامعتبر پورت باید با خطای اعتبارسنجی رد شوند.
+    with pytest.raises(MalformedVlessError):
+        parse_vless_link(link)
+
+
 def test_parse_vless_normalizes_uuid() -> None:
     """Normalize a valid UUID to its canonical string representation."""
     # UUID معتبر باید به قالب استاندارد خود نرمال شود.
@@ -161,104 +305,3 @@ def test_parse_vless_normalizes_uuid() -> None:
     result = parse_vless_link(link)
 
     assert result.outbound_config["id"] == VALID_UUID
-
-
-def test_parse_vless_rejects_empty_link() -> None:
-    """Reject an empty VLESS link."""
-    # لینک خالی VLESS باید رد شود.
-    with pytest.raises(MalformedVlessError):
-        parse_vless_link("")
-
-
-def test_parse_vless_rejects_missing_uuid() -> None:
-    """Reject a VLESS link without a UUID."""
-    # لینک VLESS بدون UUID باید رد شود.
-    link = f"vless://@example.com:443?security=reality&flow=xtls-rprx-vision&pbk={PUBLIC_KEY}"
-
-    with pytest.raises(MalformedVlessError):
-        parse_vless_link(link)
-
-
-def test_parse_vless_rejects_invalid_uuid() -> None:
-    """Reject an invalid UUID."""
-    # UUID نامعتبر باید رد شود.
-    link = f"vless://not-a-uuid@example.com:443?security=reality&flow=xtls-rprx-vision&pbk={PUBLIC_KEY}"
-
-    with pytest.raises(MalformedVlessError):
-        parse_vless_link(link)
-
-
-def test_parse_vless_rejects_unsupported_scheme() -> None:
-    """Reject non-VLESS URI schemes."""
-    # scheme غیر VLESS باید رد شود.
-    link = f"vmess://{VALID_UUID}@example.com:443?security=reality&flow=xtls-rprx-vision&pbk={PUBLIC_KEY}"
-
-    with pytest.raises(UnsupportedVlessError):
-        parse_vless_link(link)
-
-
-def test_parse_vless_rejects_missing_security() -> None:
-    """Reject links without Reality security."""
-    # لینک بدون security=reality باید رد شود.
-    link = f"vless://{VALID_UUID}@example.com:443?flow=xtls-rprx-vision&pbk={PUBLIC_KEY}"
-
-    with pytest.raises(UnsupportedVlessError):
-        parse_vless_link(link)
-
-
-def test_parse_vless_rejects_unsupported_security() -> None:
-    """Reject VLESS links using unsupported security."""
-    # security غیر Reality باید رد شود.
-    link = f"vless://{VALID_UUID}@example.com:443?security=tls&flow=xtls-rprx-vision&pbk={PUBLIC_KEY}"
-
-    with pytest.raises(UnsupportedVlessError):
-        parse_vless_link(link)
-
-
-def test_parse_vless_rejects_missing_flow() -> None:
-    """Reject links without Vision flow."""
-    # لینک بدون flow مربوط به Vision باید رد شود.
-    link = f"vless://{VALID_UUID}@example.com:443?security=reality&pbk={PUBLIC_KEY}"
-
-    with pytest.raises(UnsupportedVlessError):
-        parse_vless_link(link)
-
-
-def test_parse_vless_rejects_unsupported_flow() -> None:
-    """Reject links using an unsupported VLESS flow."""
-    # flow غیر xtls-rprx-vision باید رد شود.
-    link = f"vless://{VALID_UUID}@example.com:443?security=reality&flow=xtls-rprx-direct&pbk={PUBLIC_KEY}"
-
-    with pytest.raises(UnsupportedVlessError):
-        parse_vless_link(link)
-
-
-def test_parse_vless_rejects_missing_public_key() -> None:
-    """Reject Reality links without a public key."""
-    # لینک Reality بدون public key باید رد شود.
-    link = f"vless://{VALID_UUID}@example.com:443?security=reality&flow=xtls-rprx-vision"
-
-    with pytest.raises(MalformedVlessError):
-        parse_vless_link(link)
-
-
-@pytest.mark.parametrize(
-    "port",
-    ["0", "65536"],
-)
-def test_parse_vless_rejects_invalid_port(port: str) -> None:
-    """Reject ports outside the valid TCP range."""
-    # پورت خارج از بازه معتبر TCP باید رد شود.
-    link = f"vless://{VALID_UUID}@example.com:{port}?security=reality&flow=xtls-rprx-vision&pbk={PUBLIC_KEY}"
-
-    with pytest.raises(MalformedVlessError):
-        parse_vless_link(link)
-
-
-def test_parse_vless_rejects_invalid_port_syntax() -> None:
-    """Reject malformed port values."""
-    # مقدار نحوی نامعتبر پورت باید رد شود.
-    link = f"vless://{VALID_UUID}@example.com:not-a-port?security=reality&flow=xtls-rprx-vision&pbk={PUBLIC_KEY}"
-
-    with pytest.raises(MalformedVlessError):
-        parse_vless_link(link)

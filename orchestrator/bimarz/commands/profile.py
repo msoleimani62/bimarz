@@ -32,13 +32,15 @@ def run_profile_add(args: argparse.Namespace, config: AppConfig) -> None:
 def run_profile_list(args: argparse.Namespace, config: AppConfig) -> None:
     svc = ProfileService()
     profiles = svc.list_profiles()
+
     if not profiles:
         console.print("[dim]No profiles saved.[/dim]")
         return
+
     for profile in profiles:
         addr = format_profile_address(profile)
-        name = getattr(profile, "name", "") or ""
-        extra = f" ({name})" if name else ""
+        remark = (profile.remark or "").strip()
+        extra = f" ({remark})" if remark else ""
         console.print(f"{profile.profile_id}: {addr}{extra}")
 
 
