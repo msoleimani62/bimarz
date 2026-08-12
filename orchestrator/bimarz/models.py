@@ -41,27 +41,6 @@ class GrpcStatus(str, Enum):
 
 
 @dataclass(frozen=True)
-class VlessRealityOutbound:
-    """All fields needed to describe a single VLESS + Reality + Vision outbound.
-
-    تمام فیلدهای لازم برای توصیف یک outbound از نوع VLESS + Reality + Vision.
-    """
-
-    uuid: str
-    address: str
-    port: int
-    flow: str
-    network: str
-    security: str
-    sni: str
-    fingerprint: str
-    public_key: str
-    short_id: str
-    spider_x: str
-    remark: str
-
-
-@dataclass(frozen=True)
 class ServerProfile:
     """A single saved server profile.
 

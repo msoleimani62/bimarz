@@ -1,8 +1,8 @@
-// این ماژول یک VlessRealityOutbound (که فاز ۲ در پایتون از یک لینک VLESS
+// این ماژول یک ServerProfile outbound configuration (که فاز ۲ در پایتون از یک لینک VLESS
 // می‌سازد) را به یک OutboundHandlerConfig واقعی و کامل xray-core تبدیل
 // می‌کند — دقیقاً همان پیامی که add_outbound در grpc_client.rs نیاز دارد.
 //
-// This module converts a VlessRealityOutbound (built by phase 2's Python
+// This module converts a ServerProfile outbound configuration (built by phase 2's Python
 // layer from a VLESS link) into a real, complete xray-core
 // OutboundHandlerConfig — exactly the message add_outbound in
 // grpc_client.rs needs.
@@ -33,12 +33,12 @@ const TYPE_REALITY_CONFIG: &str = "xray.transport.internet.reality.Config";
 const TYPE_SENDER_CONFIG: &str = "xray.app.proxyman.SenderConfig";
 
 /// تمام مقادیر خام (رشته‌ای) لازم برای ساختن یک outbound کامل
-/// VLESS+Reality+Vision. این ساختار پلی است بین VlessRealityOutbound
+/// VLESS+Reality+Vision. این ساختار پلی است بین ServerProfile outbound configuration
 /// پایتونی (فاز ۲) و پیام‌های تایپ‌شده‌ی protobuf.
 ///
 /// All raw (string-form) values needed to build a complete
 /// VLESS+Reality+Vision outbound. This struct is the bridge between
-/// Python's VlessRealityOutbound (phase 2) and the typed protobuf
+/// Python's ServerProfile outbound configuration (phase 2) and the typed protobuf
 /// messages.
 pub struct VlessRealityParams {
     pub tag: String,
