@@ -150,3 +150,5 @@ ignore = [
 "orchestrator/bimarz/xray_manager.py" = ["RUF003"]
 "tests/unit/test_vless_parser.py" = ["RUF003"]
 "tests/test_integration_xray.py" = ["RUF002", "RUF003"]
+"tests/test_phase8_contracts.py" = ["RUF002"]
+"tests/test_phase8_gui_worker.py" = ["RUF002"]

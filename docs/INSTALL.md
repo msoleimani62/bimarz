@@ -21,7 +21,7 @@
 | Tool / ابزار | Min version / حداقل نسخه | How to check / چطور چک کنی |
 |---|---|---|
 | Python | 3.10+ | `python3 --version` |
-| Rust | 1.78+ | `rustc --version` |
+| Rust | 1.83+ | `rustc --version` |
 | Git | any | `git --version` |
 | xray-core binary | 1.8.24 | `xray version` |
 
@@ -119,7 +119,7 @@ Expected output / خروجی مورد انتظار:
 
 ```
 bimarz doctor — version 0.2.0
-✓ xray-core binary found: /usr/bin/xray (version: Xray 1.8.24)
+✓ xray-core binary found: <PATH-resolved xray binary> (version: Xray 1.8.24)
 ● gRPC status: responding at 127.0.0.1:10085
 ✓ gRPC API is fully responsive
 Profiles stored: 0

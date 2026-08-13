@@ -19,12 +19,12 @@ from typing import Any
 
 from PySide6.QtCore import QObject, QThread, Signal
 
-from bimarz.constants import DEFAULT_GRPC_ENDPOINT
+from bimarz.constants import ACTIVE_OUTBOUND_TAG, DEFAULT_GRPC_ENDPOINT
 from bimarz.engine import EngineNotBuiltError
 from bimarz.failover import FailoverManager, check_all_profiles, check_profile_health
 from bimarz.killswitch_manager import KillSwitchManager, KillSwitchTriggeredError
 from bimarz.models import HealthCheckResult, ServerProfile
-from bimarz.xray_config import ACTIVE_OUTBOUND_TAG, build_connect_config
+from bimarz.xray_config import build_connect_config
 from bimarz.xray_manager import BinaryNotFoundError, XrayProcess, find_xray_binary
 
 logger = logging.getLogger(__name__)
@@ -36,24 +36,23 @@ def detect_default_interface() -> str:
     تشخیص interface مربوط به مسیر پیش‌فرض (بهترین تلاش ممکن، تمرکز روی لینوکس).
     """
     route_path = Path("/proc/net/route")
-    if not route_path.exists():
-        # Non-Linux or restricted environment - let KillSwitchManager resolve
-        # محیط غیرلینوکس یا محدود - اجازه می‌دهیم KillSwitchManager تصمیم بگیرد.
-        return "auto"
 
     try:
-        with open(route_path, encoding="utf-8") as f:
-            next(f)
-            for line in f:
+        with open(route_path, encoding="utf-8") as route_file:
+            next(route_file, None)
+            for line in route_file:
                 fields = line.strip().split()
                 if len(fields) >= 11 and fields[1] == "00000000":
                     iface = fields[0]
                     if iface and iface != "lo":
                         return iface
-    except Exception:
-        logger.exception("Failed to detect default network interface from /proc/net/route")
+    except OSError as exc:
+        logger.debug(
+            "Unable to inspect /proc/net/route: %s",
+            exc,
+        )
 
-    candidates = [
+    candidates = (
         "eth0",
         "enp0s3",
         "enp0s8",
@@ -63,10 +62,10 @@ def detect_default_interface() -> str:
         "rmnet0",
         "tun0",
         "utun0",
-    ]
+    )
 
     for name in candidates:
-        if Path(f"/sys/class/net/{name}").exists():
+        if Path("/sys/class/net", name).exists():
             return name
 
     return "eth0"
@@ -383,6 +382,8 @@ class ConnectionWorker(QThread):
         )
 
     def _cleanup(self) -> None:
+        cleanup_errors: list[str] = []
+
         if self._loop is not None and not self._loop.is_closed() and self._client is not None:
             try:
                 self._run_async_fn(
@@ -390,49 +391,78 @@ class ConnectionWorker(QThread):
                     timeout=10.0,
                 )
             except Exception as exc:
-                logger.debug(
-                    "Failed to cleanup engine client: %s",
-                    exc,
-                )
+                message = f"engine client cleanup failed: {exc}"
+                logger.warning(message)
+                cleanup_errors.append(message)
             finally:
                 self._client = None
 
-        with suppress(Exception):
-            self._ks_manager.deactivate()
+        try:
+            if self._ks_manager.state.active:
+                self._ks_manager.deactivate()
+        except Exception as exc:
+            message = f"kill-switch deactivate failed: {exc}"
+            logger.error(message)
+            cleanup_errors.append(message)
 
         if self._xray_process is not None:
-            with suppress(Exception):
+            try:
                 self._xray_process.stop()
-            self._xray_process = None
+            except Exception as exc:
+                message = f"xray process stop failed: {exc}"
+                logger.warning(message)
+                cleanup_errors.append(message)
+            finally:
+                self._xray_process = None
 
         if self._runtime_dir is not None:
-            with suppress(Exception):
+            try:
                 self._runtime_dir.cleanup()
-            self._runtime_dir = None
+            except Exception as exc:
+                message = f"runtime dir cleanup failed: {exc}"
+                logger.warning(message)
+                cleanup_errors.append(message)
+            finally:
+                self._runtime_dir = None
+
+        if cleanup_errors:
+            logger.warning(
+                "GUI worker cleanup completed with %d error(s): %s",
+                len(cleanup_errors),
+                "; ".join(cleanup_errors),
+            )
 
     async def _async_cleanup(self) -> None:
         if self._client is None:
             return
 
-        with suppress(Exception):
-            remove_outbound = getattr(
-                self._client,
-                "remove_outbound",
-                None,
-            )
+        errors: list[str] = []
 
-            if callable(remove_outbound):
+        remove_outbound = getattr(
+            self._client,
+            "remove_outbound",
+            None,
+        )
+
+        if callable(remove_outbound):
+            try:
                 await remove_outbound(ACTIVE_OUTBOUND_TAG)
+            except Exception as exc:
+                errors.append(f"remove outbound failed: {exc}")
 
-        with suppress(Exception):
-            close = getattr(
-                self._client,
-                "close",
-                None,
-            )
+        close = getattr(
+            self._client,
+            "close",
+            None,
+        )
 
-            if callable(close):
+        if callable(close):
+            try:
                 result = close()
-
                 if asyncio.iscoroutine(result):
                     await result
+            except Exception as exc:
+                errors.append(f"engine client close failed: {exc}")
+
+        if errors:
+            raise RuntimeError("; ".join(errors))

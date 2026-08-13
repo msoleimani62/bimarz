@@ -10,10 +10,11 @@ import sys
 from unittest.mock import patch
 
 import pytest
-from bimarz import cli
 from bimarz.engine import EngineNotBuiltError
 from bimarz.errors import get_hint
 from bimarz.events import ConnectionEvent
+
+from bimarz import cli
 
 
 def test_parser_version_flag() -> None:

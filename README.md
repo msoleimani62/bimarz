@@ -6,7 +6,7 @@ BiMarz لایه orchestration سطح بالا را در Python نگه می‌د�
 
 [🇮🇷 فارسی](#فارسی) | [🇬🇧 English](#english)
 
-> **وضعیت فعلی پروژه:** فازهای ۰ تا ۶ کامل شده‌اند. فاز ۷ در حال انجام است و فاز ۸ هنوز شروع نشده است. وضعیت دقیق هر فاز در بخش Roadmap و وضعیت implementation واقعی در repository مرجع است.
+> **وضعیت فعلی پروژه:** فازهای ۰ تا ۷ کامل شده‌اند. فاز ۸ در حال انجام است و روی hardening چرخه کامل اتصال، rollback، cleanup و شواهد پذیرش تمرکز دارد. وضعیت دقیق هر فاز در بخش Roadmap و وضعیت implementation واقعی در repository مرجع است.
 
 ---
 
@@ -128,8 +128,8 @@ bimarz/
 | ۴ | ✅ کامل | Kill switch، DNS leak protection و platform detection |
 | ۵ | ✅ کامل | CLI نهایی، GUI skeleton، packaging و release workflow |
 | ۶ | ✅ کامل | CI/CD، security audit، quality gates و docs/INSTALL.md |
-| ۷ | 🔄 در حال انجام | Subscription URL parsing، base64 decoding و auto-update profiles |
-| ۸ | ⏳ شروع نشده | Release automation نهایی، PyPI publication و packaging polish |
+| ۷ | ✅ کامل | Subscription URL parsing، base64 decoding و auto-update profiles |
+| ۸ | 🔄 در حال انجام | Connection lifecycle hardening، rollback، cleanup observability و acceptance evidence |
 
 > **نکته:** وضعیت roadmap باید با implementation واقعی repository هماهنگ بماند. برنامه‌های آینده نباید به‌عنوان قابلیت فعلی مستند شوند.
 
@@ -383,7 +383,7 @@ pipeline امنیتی پروژه شامل بررسی dependencyها و کد با
 - `pip-audit` برای dependencyهای Python
 - `bandit` برای بررسی الگوهای امنیتی Python
 
-در وضعیت فعلی Phase 6، دو advisory شناخته‌شده مربوط به PyO3 یعنی `RUSTSEC-2025-0020` و `RUSTSEC-2026-0177` مستند شده‌اند.
+در سابقه Phase 6، دو advisory شناخته‌شده مربوط به PyO3 یعنی `RUSTSEC-2025-0020` و `RUSTSEC-2026-0177` مستند شده‌اند.
 
 این موارد در `SECURITY.md` با disposition مربوطه ثبت شده‌اند. وجود advisory در dependency به‌تنهایی به معنی استفاده BiMarz از API آسیب‌دیده نیست و وضعیت واقعی باید از مستندات security project و dependency tree بررسی شود.
 
@@ -626,8 +626,8 @@ The structure above is a high-level repository overview. The actual repository a
 | 4 | ✅ Complete | Kill switch, DNS leak protection and platform detection |
 | 5 | ✅ Complete | Final CLI, GUI skeleton, packaging and release workflow |
 | 6 | ✅ Complete | CI/CD, security audit, quality gates and docs/INSTALL.md |
-| 7 | 🔄 In Progress | Subscription URL parsing, base64 decoding and auto-update profiles |
-| 8 | ⏳ Not Started | Final release automation, PyPI publication and packaging polish |
+| 7 | ✅ Complete | Subscription URL parsing, base64 decoding and auto-update profiles |
+| 8 | 🔄 In Progress | Connection lifecycle hardening, rollback, cleanup observability and acceptance evidence |
 
 > Roadmap entries must reflect verified implementation status. Planned functionality must not be documented as currently available.
 
@@ -842,7 +842,7 @@ Security checks include:
 - `pip-audit` for Python dependency advisories
 - `bandit` for Python security checks
 
-Phase 6 includes two known PyO3 advisories: `RUSTSEC-2025-0020` and `RUSTSEC-2026-0177`.
+Phase 6 recorded two known PyO3 advisories: `RUSTSEC-2025-0020` and `RUSTSEC-2026-0177`.
 
 These findings are documented in `SECURITY.md` with their current disposition. An advisory in a dependency does not by itself prove that the affected API is used by BiMarz; the dependency tree and security documentation remain authoritative.
 

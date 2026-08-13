@@ -23,7 +23,9 @@ class ConnectionEvent(Enum):
 
 class EventPayload(TypedDict, total=False):
     profile_id: str
+    old_profile_id: str
     new_profile_id: str
+    reason: str
     error: str
     message: str
 

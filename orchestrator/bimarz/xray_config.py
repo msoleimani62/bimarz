@@ -7,18 +7,29 @@ from __future__ import annotations
 
 import json
 
-from bimarz.constants import DEFAULT_GRPC_ENDPOINT, DEFAULT_LOCAL_SOCKS_PORT
+from bimarz.constants import (
+    ACTIVE_OUTBOUND_TAG,
+    DEFAULT_GRPC_ENDPOINT,
+    DEFAULT_LOCAL_SOCKS_PORT,
+)
 from bimarz.dns_leak_guard import get_default_dns_guard_config, get_dns_routing_rule
 
-ACTIVE_OUTBOUND_TAG = "active-proxy"
+__all__ = [
+    "ACTIVE_OUTBOUND_TAG",
+    "build_connect_config",
+]
 
 
 def _grpc_listen_address(grpc_endpoint: str) -> str:
-    """Extracts the "host:port" part xray-core's api.listen field wants.
+    """Extract the host:port part required by xray-core api.listen.
 
-    بخش "host:port" ای که فیلد api.listen در xray-core می‌خواهد را استخراج می‌کند.
+    بخش host:port موردنیاز فیلد api.listen در xray-core را استخراج می‌کند.
     """
-    return grpc_endpoint.removeprefix("http://").removeprefix("https://")
+    endpoint = grpc_endpoint.strip()
+    if not endpoint:
+        raise ValueError("grpc_endpoint must not be empty")
+
+    return endpoint.removeprefix("http://").removeprefix("https://")
 
 
 def build_connect_config(
@@ -26,10 +37,13 @@ def build_connect_config(
     local_socks_port: int = DEFAULT_LOCAL_SOCKS_PORT,
     enable_dns_guard: bool = True,
 ) -> str:
-    """Builds the xray-core config JSON as a string.
+    """Build the xray-core config JSON as a string.
 
     کانفیگ JSON مربوط به xray-core را به‌صورت رشته می‌سازد.
     """
+    if not 1 <= local_socks_port <= 65535:
+        raise ValueError("local_socks_port must be between 1 and 65535")
+
     config: dict = {
         "log": {"loglevel": "warning"},
         "api": {
@@ -58,6 +72,7 @@ def build_connect_config(
     }
 
     outbounds = [{"protocol": "freedom", "tag": "placeholder"}]
+
     if enable_dns_guard:
         outbounds.append({"protocol": "dns", "tag": "dns-out"})
         config["dns"] = get_default_dns_guard_config()
@@ -65,8 +80,10 @@ def build_connect_config(
     config["outbounds"] = outbounds
 
     rules = []
+
     if enable_dns_guard:
         rules.append(get_dns_routing_rule())
+
     rules.append(
         {
             "type": "field",
@@ -76,4 +93,5 @@ def build_connect_config(
     )
 
     config["routing"] = {"rules": rules}
+
     return json.dumps(config, indent=2)

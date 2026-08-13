@@ -64,7 +64,32 @@ def test_context_manager_cleanup_is_idempotent() -> None:
     ]
 
 
-def test_cleanup_disables_active_killswitch() -> None:
+def test_cleanup_disables_owned_killswitch() -> None:
+    """Cleanup disables a kill-switch owned by the connection.
+    پاک‌سازی kill-switch متعلق به اتصال را غیرفعال می‌کند.
+    """
+    process = MagicMock()
+    killswitch = MagicMock()
+    killswitch.is_active.return_value = True
+
+    conn = ConnectionService(
+        AppConfig(),
+        process_svc=process,
+        engine_svc=MagicMock(),
+        ks_svc=killswitch,
+    )
+    conn._killswitch_enabled = True
+
+    asyncio.run(conn.cleanup())
+
+    process.stop.assert_called_once()
+    killswitch.disable.assert_called_once()
+
+
+def test_cleanup_does_not_disable_unowned_killswitch() -> None:
+    """Cleanup must not disable a kill-switch owned externally.
+    پاک‌سازی نباید kill-switch متعلق به یک مالک خارجی را غیرفعال کند.
+    """
     process = MagicMock()
     killswitch = MagicMock()
     killswitch.is_active.return_value = True
@@ -79,7 +104,7 @@ def test_cleanup_disables_active_killswitch() -> None:
     asyncio.run(conn.cleanup())
 
     process.stop.assert_called_once()
-    killswitch.disable.assert_called_once()
+    killswitch.disable.assert_not_called()
 
 
 def test_request_stop_sets_stop_event() -> None:

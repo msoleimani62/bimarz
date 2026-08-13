@@ -7,12 +7,30 @@ This file follows the [Keep a Changelog](https://keepachangelog.com/) format.
 
 ### Added — افزوده شد
 
+- Phase 8 lifecycle regression tests (`tests/test_phase8_lifecycle.py`).
+- Phase 8 contract tests (`tests/test_phase8_contracts.py`).
+- Phase 8 GUI worker lifecycle tests (`tests/test_phase8_gui_worker.py`).
+- Phase 8 engine ownership tests (`tests/test_phase8_engine_service.py`).
+- `EngineService.close()` for explicit engine client ownership release.
+- Phase 8 hardening documentation and acceptance evidence.
 - `docs/INSTALL.md`: step-by-step bilingual installation guide for non-technical users.
 - `.github/workflows/security.yml`: scheduled dependency security auditing for Rust and Python dependencies using `cargo-audit`, `pip-audit`, and `bandit`.
 - `SECURITY.md`: documented disposition for known PyO3 advisories (RUSTSEC-2025-0020, RUSTSEC-2026-0177) per project Constitution.
 
+### Fixed — اصلاح شد
+
+- **Critical:** unified `ACTIVE_OUTBOUND_TAG` so routing, gRPC add/remove, CLI, and GUI all use the same canonical outbound tag (`bimarz-active`).
+- Connection startup now rolls back partially acquired resources after failures.
+- Cleanup failures are logged and surfaced through lifecycle error events.
+- GUI engine cleanup now reports outbound removal and client close failures.
+- Engine client ownership is explicitly released during cleanup.
+
 ### Changed — تغییر یافت
 
+- `ConnectionService.start()` now performs transactional startup rollback.
+- `ConnectionService.cleanup()` performs multi-resource cleanup and reports cleanup errors.
+- `EngineService` owns and explicitly closes its engine client.
+- GUI cleanup continues releasing independent resources even when one cleanup operation fails.
 - `README.md`: roadmap synced to reflect phase 6 completion; phase 6 security/CI tasks marked done, phase 7 (Subscription Manager) marked in-progress.
 - `scripts/build-release.sh`: added a `cargo clippy` validation step before building and added maturin version validation.
 
@@ -29,6 +47,7 @@ This file follows the [Keep a Changelog](https://keepachangelog.com/) format.
 - Preserved existing integration assertions and active test coverage while removing only obsolete skipped tests.
 - No public API was changed as part of the phase 6 test and CI cleanup.
 - No runtime dependency was added to the project; `cargo-audit`, `pip-audit`, and `bandit` are CI-only security tooling.
+
 
 ## [0.2.0] — 2026-08-03
 

@@ -7,6 +7,7 @@ orchestrator سطح بالای اتصال.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import signal
 from contextlib import suppress
@@ -47,6 +48,7 @@ class ConnectionService:
         self._event_handler = event_handler
         self._stop_event = asyncio.Event()
         self._cleaned = False
+        self._killswitch_enabled = False
         self._signals_registered: list[signal.Signals] = []
 
     def _emit(self, event: ConnectionEvent, **data: Any) -> None:
@@ -66,7 +68,10 @@ class ConnectionService:
         exc,
         tb,
     ) -> None:
-        if exc is not None and not isinstance(exc, (asyncio.CancelledError, KeyboardInterrupt)):
+        if exc is not None and not isinstance(
+            exc,
+            (asyncio.CancelledError, KeyboardInterrupt),
+        ):
             self._emit(ConnectionEvent.ERROR, error=str(exc))
 
         await self.cleanup()
@@ -113,37 +118,45 @@ class ConnectionService:
         killswitch: bool = False,
         all_profiles: list[ServerProfile] | None = None,
     ) -> None:
+        self._stop_event.clear()
+        self._cleaned = False
+
         self._emit(
             ConnectionEvent.STARTED,
             profile_id=profile.profile_id,
         )
 
-        proc = self.process_svc.start(profile)
+        try:
+            proc = self.process_svc.start(profile)
 
-        await self.engine_svc.connect()
-        await self.engine_svc.add_outbound(profile)
+            await self.engine_svc.connect()
+            await self.engine_svc.add_outbound(profile)
+            self._emit(ConnectionEvent.ENGINE_READY)
 
-        self._emit(ConnectionEvent.ENGINE_READY)
+            if killswitch:
+                self.ks_svc.enable(
+                    interface=self.config.default_interface,
+                )
+                self._killswitch_enabled = True
+                self._emit(ConnectionEvent.KILLSWITCH_ENABLED)
+                self.ks_svc.start_watcher(
+                    poll_fn=proc.is_running,
+                )
 
-        if killswitch:
-            self.ks_svc.enable(
-                interface=self.config.default_interface,
-            )
-            self._emit(ConnectionEvent.KILLSWITCH_ENABLED)
-            self.ks_svc.start_watcher(
-                poll_fn=proc.is_running,
-            )
+            self._register_signals()
 
-        self._register_signals()
+            if auto_failover and all_profiles:
+                await self._failover_loop(
+                    profile,
+                    all_profiles,
+                    proc,
+                )
+            else:
+                await self._watch_loop(proc)
 
-        if auto_failover and all_profiles:
-            await self._failover_loop(
-                profile,
-                all_profiles,
-                proc,
-            )
-        else:
-            await self._watch_loop(proc)
+        except BaseException:
+            await self.cleanup()
+            raise
 
     async def _failover_loop(
         self,
@@ -230,25 +243,79 @@ class ConnectionService:
             except asyncio.TimeoutError:
                 continue
 
+    async def _await_if_needed(self, result: object) -> object:
+        if inspect.isawaitable(result):
+            return await result
+        return result
+
     async def cleanup(self) -> None:
         if self._cleaned:
             return
 
+        errors: list[str] = []
+
+        try:
+            self._unregister_signals()
+        except Exception as exc:
+            message = f"signal cleanup failed: {exc}"
+            logger.warning(message)
+            errors.append(message)
+
+        try:
+            self.ks_svc.stop_watcher()
+        except Exception as exc:
+            message = f"kill-switch watcher stop failed: {exc}"
+            logger.warning(message)
+            errors.append(message)
+
+        try:
+            result = self.engine_svc.remove_outbound(
+                raise_on_error=True,
+            )
+            await self._await_if_needed(result)
+        except Exception as exc:
+            message = f"engine outbound cleanup failed: {exc}"
+            logger.warning(message)
+            errors.append(message)
+
+        try:
+            result = self.engine_svc.close()
+            await self._await_if_needed(result)
+        except Exception as exc:
+            message = f"engine client cleanup failed: {exc}"
+            logger.warning(message)
+            errors.append(message)
+
+        try:
+            self.process_svc.stop()
+        except Exception as exc:
+            message = f"xray process cleanup failed: {exc}"
+            logger.warning(message)
+            errors.append(message)
+        else:
+            self._emit(ConnectionEvent.PROCESS_STOPPED)
+
+        try:
+            if self._killswitch_enabled:
+                self.ks_svc.disable()
+                self._killswitch_enabled = False
+        except Exception as exc:
+            message = f"kill-switch disable failed: {exc}"
+            logger.error(message)
+            errors.append(message)
+
         self._cleaned = True
 
-        self._unregister_signals()
-
-        with suppress(Exception):
-            self.ks_svc.stop_watcher()
-
-        with suppress(Exception):
-            self.process_svc.stop()
-
-        self._emit(ConnectionEvent.PROCESS_STOPPED)
-
-        if self.ks_svc.is_active():
-            with suppress(Exception):
-                self.ks_svc.disable()
+        if errors:
+            self._emit(
+                ConnectionEvent.ERROR,
+                error="; ".join(errors),
+            )
+            logger.warning(
+                "Connection cleanup completed with %d error(s): %s",
+                len(errors),
+                "; ".join(errors),
+            )
 
         self._emit(ConnectionEvent.CLEANUP_DONE)
 

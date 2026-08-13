@@ -41,6 +41,7 @@ def test_has_a_placeholder_outbound_so_xray_core_starts_cleanly() -> None:
     config = json.loads(build_connect_config())
     assert len(config["outbounds"]) >= 1
     assert config["outbounds"][0]["protocol"] == "freedom"
+    assert config["outbounds"][0]["tag"] == "placeholder"
 
 
 def test_routing_sends_socks_traffic_to_the_active_outbound_tag() -> None:
