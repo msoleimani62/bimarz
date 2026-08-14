@@ -560,8 +560,8 @@ Do not repeat the completed parser consolidation unless the new task explicitly 
 
 Before modifying code:
 
-1. Read AGENTS.md.
-2. Read AI_AGENT_RULES.md if present.
+1. This checkpoint was created under the governance files that existed at that time.
+2. Those historical governance files are no longer present in the current repository.
 3. Read this checkpoint.
 4. Inspect the current git status.
 5. Inspect the current HEAD.

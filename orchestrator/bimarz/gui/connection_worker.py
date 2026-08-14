@@ -320,10 +320,7 @@ class ConnectionWorker(QThread):
             if self.should_stop():
                 break
 
-            if (
-                self._enable_killswitch
-                and not self._ks_manager.is_watcher_alive()
-            ):
+            if self._enable_killswitch and not self._ks_manager.is_watcher_alive():
                 raise KillSwitchTriggeredError(
                     "xray-core stopped unexpectedly. Kill-switch triggered.",
                 )
@@ -480,10 +477,7 @@ class ConnectionWorker(QThread):
             if self._stop_event.wait(1.0):
                 break
 
-            if (
-                self._enable_killswitch
-                and not self._ks_manager.is_watcher_alive()
-            ):
+            if self._enable_killswitch and not self._ks_manager.is_watcher_alive():
                 raise KillSwitchTriggeredError(
                     "xray-core stopped unexpectedly. Kill-switch triggered.",
                 )
@@ -492,11 +486,7 @@ class ConnectionWorker(QThread):
         self._stop_event.wait(seconds)
 
     def _emit_latency(self, result: HealthCheckResult) -> None:
-        latency = (
-            result.latency_ms
-            if result.latency_ms is not None
-            else -1.0
-        )
+        latency = result.latency_ms if result.latency_ms is not None else -1.0
 
         self.latency_updated.emit(
             result.profile_id,
@@ -507,11 +497,7 @@ class ConnectionWorker(QThread):
     def _cleanup(self) -> None:
         cleanup_errors: list[str] = []
 
-        if (
-            self._loop is not None
-            and not self._loop.is_closed()
-            and self._client is not None
-        ):
+        if self._loop is not None and not self._loop.is_closed() and self._client is not None:
             try:
                 self._run_async_fn(
                     self._async_cleanup,

@@ -190,10 +190,7 @@ class ConnectionService:
             if rollback_errors:
                 self._emit(
                     ConnectionEvent.ERROR,
-                    error=(
-                        f"startup failed: {primary_error}; "
-                        f"rollback failed: {'; '.join(rollback_errors)}"
-                    ),
+                    error=(f"startup failed: {primary_error}; rollback failed: {'; '.join(rollback_errors)}"),
                 )
 
             raise
@@ -230,9 +227,7 @@ class ConnectionService:
                 best_id = failover.pick_best(results)
 
                 if best_id is None:
-                    message = (
-                        "failover required but no reachable alternative exists"
-                    )
+                    message = "failover required but no reachable alternative exists"
                     logger.error(message)
                     self._emit(
                         ConnectionEvent.ERROR,
@@ -251,9 +246,7 @@ class ConnectionService:
                     await self.engine_svc.add_outbound(best_profile)
                     self._outbound_owned = True
                 except Exception as exc:
-                    logger.exception(
-                        "Failover switch failed; attempting outbound recovery"
-                    )
+                    logger.exception("Failover switch failed; attempting outbound recovery")
 
                     recovery_error: Exception | None = None
 
@@ -286,10 +279,7 @@ class ConnectionService:
 
                 event = failover.trigger(
                     best_id,
-                    reason=(
-                        f"{failover.manager.threshold} consecutive "
-                        "health-check failures"
-                    ),
+                    reason=(f"{failover.manager.threshold} consecutive health-check failures"),
                 )
 
                 self._emit(

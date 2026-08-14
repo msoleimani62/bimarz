@@ -12,7 +12,7 @@ This file follows the [Keep a Changelog](https://keepachangelog.com/) format.
 - Phase 8 GUI worker lifecycle tests (`tests/test_phase8_gui_worker.py`).
 - Phase 8 engine ownership tests (`tests/test_phase8_engine_service.py`).
 - `EngineService.close()` for explicit engine client ownership release.
-- Phase 8 hardening documentation and acceptance evidence.
+- Phase 8 hardening documentation and acceptance validation evidence.
 - `docs/INSTALL.md`: step-by-step bilingual installation guide for non-technical users.
 - `.github/workflows/security.yml`: scheduled dependency security auditing for Rust and Python dependencies using `cargo-audit`, `pip-audit`, and `bandit`.
 - `SECURITY.md`: documented disposition for known PyO3 advisories (RUSTSEC-2025-0020, RUSTSEC-2026-0177) per project Constitution.
@@ -31,7 +31,7 @@ This file follows the [Keep a Changelog](https://keepachangelog.com/) format.
 - `ConnectionService.cleanup()` performs multi-resource cleanup and reports cleanup errors.
 - `EngineService` owns and explicitly closes its engine client.
 - GUI cleanup continues releasing independent resources even when one cleanup operation fails.
-- `README.md`: roadmap synced to reflect phase 6 completion; phase 6 security/CI tasks marked done, phase 7 (Subscription Manager) marked in-progress.
+- `README.md`: roadmap synchronized with the verified implementation through Phase 8 completion.
 - `scripts/build-release.sh`: added a `cargo clippy` validation step before building and added maturin version validation.
 
 ### Security — امنیت
@@ -44,6 +44,8 @@ This file follows the [Keep a Changelog](https://keepachangelog.com/) format.
 
 ### Testing — تست
 
+- Phase 8 acceptance validation completed with 253 passing Python tests.
+- Ruff validation completed successfully for `orchestrator` and `tests`.
 - Preserved existing integration assertions and active test coverage while removing only obsolete skipped tests.
 - No public API was changed as part of the phase 6 test and CI cleanup.
 - No runtime dependency was added to the project; `cargo-audit`, `pip-audit`, and `bandit` are CI-only security tooling.

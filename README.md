@@ -107,8 +107,6 @@ bimarz/
 │   └── workflows/
 ├── pyproject.toml
 ├── Cargo.toml
-├── AGENTS.md
-├── AI_AGENT_RULES.md
 ├── SECURITY.md
 ├── CHANGELOG.md
 ├── LICENSE
@@ -129,7 +127,7 @@ bimarz/
 | ۵ | ✅ کامل | CLI نهایی، GUI skeleton، packaging و release workflow |
 | ۶ | ✅ کامل | CI/CD، security audit، quality gates و docs/INSTALL.md |
 | ۷ | ✅ کامل | Subscription URL parsing، base64 decoding و auto-update profiles |
-| ۸ | 🔄 در حال انجام | Connection lifecycle hardening، rollback، cleanup observability و acceptance evidence |
+| ۸ | ✅ کامل | Connection lifecycle hardening، transactional rollback، cleanup observability و acceptance validation |
 
 > **نکته:** وضعیت roadmap باید با implementation واقعی repository هماهنگ بماند. برنامه‌های آینده نباید به‌عنوان قابلیت فعلی مستند شوند.
 
@@ -394,8 +392,6 @@ PyO3 به نسخه 0.29.2 ارتقا یافته و این migration در چار�
 قبل از هر تغییر در repository، توسعه‌دهندگان و AI agentها باید اسناد زیر را مطالعه کنند:
 
 ```text
-AGENTS.md
-AI_AGENT_RULES.md
 SECURITY.md
 ```
 
@@ -420,7 +416,6 @@ README جایگزین این اسناد نیست و در صورت وجود تع�
 1. `pyproject.toml` برای metadata و Python packaging
 2. `Cargo.toml` برای Rust crate و dependencyهای Rust
 3. CLI implementation برای commandها و optionها
-4. `AGENTS.md` و `AI_AGENT_RULES.md` برای قوانین توسعه
 5. `SECURITY.md` برای یافته‌های امنیتی و disposition
 6. `LICENSE` برای مجوز پروژه
 7. CI workflows برای pipelineهای build و test
@@ -501,7 +496,6 @@ cargo test --manifest-path engine-core/Cargo.toml
 cargo clippy --all-targets --all-features -- -D warnings
 ```
 
-قبل از ایجاد Pull Request همچنین قوانین `AGENTS.md` و `AI_AGENT_RULES.md` و الزامات امنیتی `SECURITY.md` را بررسی کنید.
 
 ### 📜 مجوز
 
@@ -605,8 +599,6 @@ bimarz/
 │   └── workflows/
 ├── pyproject.toml
 ├── Cargo.toml
-├── AGENTS.md
-├── AI_AGENT_RULES.md
 ├── SECURITY.md
 ├── CHANGELOG.md
 ├── LICENSE
@@ -627,7 +619,7 @@ The structure above is a high-level repository overview. The actual repository a
 | 5 | ✅ Complete | Final CLI, GUI skeleton, packaging and release workflow |
 | 6 | ✅ Complete | CI/CD, security audit, quality gates and docs/INSTALL.md |
 | 7 | ✅ Complete | Subscription URL parsing, base64 decoding and auto-update profiles |
-| 8 | 🔄 In Progress | Connection lifecycle hardening, rollback, cleanup observability and acceptance evidence |
+| 8 | ✅ Complete | Connection lifecycle hardening, transactional rollback, cleanup observability and acceptance validation |
 
 > Roadmap entries must reflect verified implementation status. Planned functionality must not be documented as currently available.
 
@@ -853,8 +845,6 @@ PyO3 has been upgraded to 0.29.2 as part of the Phase 6 security migration.
 Before modifying the repository, developers and AI agents must read:
 
 ```text
-AGENTS.md
-AI_AGENT_RULES.md
 SECURITY.md
 ```
 
@@ -869,7 +859,6 @@ The following sources are authoritative for information that changes with implem
 1. `pyproject.toml` for Python metadata and packaging
 2. `Cargo.toml` for Rust package configuration and dependencies
 3. CLI implementation for commands and options
-4. `AGENTS.md` and `AI_AGENT_RULES.md` for development rules
 5. `SECURITY.md` for security findings and disposition
 6. `LICENSE` for licensing terms
 7. CI workflows for build and test pipelines
@@ -950,7 +939,6 @@ cargo test --manifest-path engine-core/Cargo.toml
 cargo clippy --all-targets --all-features -- -D warnings
 ```
 
-Review `AGENTS.md`, `AI_AGENT_RULES.md` and `SECURITY.md` before opening a Pull Request.
 
 ### 📜 License
 
@@ -985,8 +973,6 @@ GitHub        : msoleimani62
 
 ### 🔗 Useful Repository Documents
 
-- `AGENTS.md` — project architecture and repository constitution
-- `AI_AGENT_RULES.md` — binding rules for AI agents and developers
 - `SECURITY.md` — security findings, advisories and dispositions
 - `CHANGELOG.md` — technical and release history
 - `docs/INSTALL.md` — detailed installation documentation
