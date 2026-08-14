@@ -1,7 +1,13 @@
 """
-High-level connection orchestrator.
+High-level connection lifecycle orchestrator.
 
-orchestrator سطح بالای اتصال.
+Orchestrates transactional startup, rollback, cleanup, failover, and
+resource ownership for the application connection lifecycle.
+
+مدیریت چرخه عمر اتصال در سطح بالا.
+
+چرخه راه‌اندازی تراکنشی، rollback، cleanup، failover و مالکیت منابع را
+برای چرخه عمر اتصال برنامه مدیریت می‌کند.
 """
 
 from __future__ import annotations
@@ -28,9 +34,9 @@ logger = logging.getLogger(__name__)
 
 
 class ConnectionService:
-    """High-level connection lifecycle orchestrator.
+    """Manage the complete connection lifecycle.
 
-    مدیریت چرخه کامل اتصال.
+    مدیریت کامل چرخه عمر اتصال.
     """
 
     def __init__(
@@ -48,6 +54,10 @@ class ConnectionService:
         self._event_handler = event_handler
         self._stop_event = asyncio.Event()
         self._cleaned = False
+        self._started = False
+        self._process_owned = False
+        self._engine_owned = False
+        self._outbound_owned = False
         self._killswitch_enabled = False
         self._signals_registered: list[signal.Signals] = []
 
@@ -55,7 +65,12 @@ class ConnectionService:
         payload = cast(EventPayload, data)
 
         if self._event_handler is not None:
-            self._event_handler(event, payload)
+            try:
+                self._event_handler(event, payload)
+            except Exception:
+                # خطای observer نباید چرخه عمر را متوقف کند.
+                # Observer failures must never abort the lifecycle.
+                logger.exception("Connection event handler failed for %s", event.name)
 
         logger.debug("Event %s: %s", event.name, data)
 
@@ -98,6 +113,9 @@ class ConnectionService:
             )
 
     def _unregister_signals(self) -> None:
+        if not self._signals_registered:
+            return
+
         loop = asyncio.get_running_loop()
 
         for sig in self._signals_registered:
@@ -120,6 +138,11 @@ class ConnectionService:
     ) -> None:
         self._stop_event.clear()
         self._cleaned = False
+        self._started = False
+        self._process_owned = False
+        self._engine_owned = False
+        self._outbound_owned = False
+        self._killswitch_enabled = False
 
         self._emit(
             ConnectionEvent.STARTED,
@@ -128,9 +151,13 @@ class ConnectionService:
 
         try:
             proc = self.process_svc.start(profile)
+            self._process_owned = True
 
             await self.engine_svc.connect()
+            self._engine_owned = True
+
             await self.engine_svc.add_outbound(profile)
+            self._outbound_owned = True
             self._emit(ConnectionEvent.ENGINE_READY)
 
             if killswitch:
@@ -139,11 +166,14 @@ class ConnectionService:
                 )
                 self._killswitch_enabled = True
                 self._emit(ConnectionEvent.KILLSWITCH_ENABLED)
+
                 self.ks_svc.start_watcher(
                     poll_fn=proc.is_running,
                 )
 
             self._register_signals()
+
+            self._started = True
 
             if auto_failover and all_profiles:
                 await self._failover_loop(
@@ -154,9 +184,25 @@ class ConnectionService:
             else:
                 await self._watch_loop(proc)
 
-        except BaseException:
-            await self.cleanup()
+        except BaseException as primary_error:
+            rollback_errors = await self._rollback()
+
+            if rollback_errors:
+                self._emit(
+                    ConnectionEvent.ERROR,
+                    error=(
+                        f"startup failed: {primary_error}; "
+                        f"rollback failed: {'; '.join(rollback_errors)}"
+                    ),
+                )
+
             raise
+
+    async def _rollback(self) -> list[str]:
+        return await self._cleanup_resources(
+            emit_cleanup_done=False,
+            mark_cleaned=False,
+        )
 
     async def _failover_loop(
         self,
@@ -184,21 +230,66 @@ class ConnectionService:
                 best_id = failover.pick_best(results)
 
                 if best_id is None:
-                    logger.error("Failover required but no reachable alternative profile exists")
+                    message = (
+                        "failover required but no reachable alternative exists"
+                    )
+                    logger.error(message)
                     self._emit(
                         ConnectionEvent.ERROR,
-                        error="failover required but no reachable alternative exists",
+                        error=message,
                     )
                     break
 
                 best_profile = profile_map[best_id]
 
-                await self.engine_svc.remove_outbound()
-                await self.engine_svc.add_outbound(best_profile)
+                try:
+                    await self.engine_svc.remove_outbound(
+                        raise_on_error=True,
+                    )
+                    self._outbound_owned = False
+
+                    await self.engine_svc.add_outbound(best_profile)
+                    self._outbound_owned = True
+                except Exception as exc:
+                    logger.exception(
+                        "Failover switch failed; attempting outbound recovery"
+                    )
+
+                    recovery_error: Exception | None = None
+
+                    try:
+                        if self._outbound_owned:
+                            await self.engine_svc.remove_outbound(
+                                raise_on_error=True,
+                            )
+                            self._outbound_owned = False
+                    except Exception as recovery_exc:
+                        recovery_error = recovery_exc
+
+                    try:
+                        await self.engine_svc.add_outbound(
+                            profile_map[active_id],
+                        )
+                        self._outbound_owned = True
+                    except Exception as recovery_exc:
+                        recovery_error = recovery_exc
+
+                    message = f"failover switch failed: {exc}"
+                    if recovery_error is not None:
+                        message += f"; recovery failed: {recovery_error}"
+
+                    self._emit(
+                        ConnectionEvent.ERROR,
+                        error=message,
+                    )
+                    break
 
                 event = failover.trigger(
                     best_id,
-                    reason=(f"{failover.manager.threshold} consecutive health-check failures"),
+                    reason=(
+                        f"{failover.manager.threshold} consecutive "
+                        "health-check failures"
+                    ),
                 )
 
                 self._emit(
@@ -207,6 +298,8 @@ class ConnectionService:
                     new_profile_id=event.to_profile_id,
                     reason=event.reason,
                 )
+
+                active_id = best_id
 
             if self.ks_svc.is_active() and not self.ks_svc.is_watcher_alive():
                 self._emit(
@@ -248,10 +341,12 @@ class ConnectionService:
             return await result
         return result
 
-    async def cleanup(self) -> None:
-        if self._cleaned:
-            return
-
+    async def _cleanup_resources(
+        self,
+        *,
+        emit_cleanup_done: bool,
+        mark_cleaned: bool,
+    ) -> list[str]:
         errors: list[str] = []
 
         try:
@@ -268,56 +363,143 @@ class ConnectionService:
             logger.warning(message)
             errors.append(message)
 
-        try:
-            result = self.engine_svc.remove_outbound(
-                raise_on_error=True,
-            )
-            await self._await_if_needed(result)
-        except Exception as exc:
-            message = f"engine outbound cleanup failed: {exc}"
-            logger.warning(message)
-            errors.append(message)
+        if self._outbound_owned:
+            try:
+                result = self.engine_svc.remove_outbound(
+                    raise_on_error=True,
+                )
+                await self._await_if_needed(result)
+            except Exception as exc:
+                message = f"engine outbound cleanup failed: {exc}"
+                logger.warning(message)
+                errors.append(message)
+            else:
+                self._outbound_owned = False
 
-        try:
-            result = self.engine_svc.close()
-            await self._await_if_needed(result)
-        except Exception as exc:
-            message = f"engine client cleanup failed: {exc}"
-            logger.warning(message)
-            errors.append(message)
+        if self._engine_owned or self.engine_svc.engine is not None:
+            try:
+                result = self.engine_svc.close()
+                await self._await_if_needed(result)
+            except Exception as exc:
+                message = f"engine client cleanup failed: {exc}"
+                logger.warning(message)
+                errors.append(message)
+            finally:
+                self._engine_owned = False
 
-        try:
-            self.process_svc.stop()
-        except Exception as exc:
-            message = f"xray process cleanup failed: {exc}"
-            logger.warning(message)
-            errors.append(message)
-        else:
-            self._emit(ConnectionEvent.PROCESS_STOPPED)
+        if self._process_owned:
+            try:
+                self.process_svc.stop()
+            except Exception as exc:
+                message = f"xray process cleanup failed: {exc}"
+                logger.warning(message)
+                errors.append(message)
+            else:
+                self._process_owned = False
+                self._emit(ConnectionEvent.PROCESS_STOPPED)
 
-        try:
-            if self._killswitch_enabled:
+        if self._killswitch_enabled:
+            try:
                 self.ks_svc.disable()
+            except Exception as exc:
+                message = f"kill-switch disable failed: {exc}"
+                logger.error(message)
+                errors.append(message)
+            else:
                 self._killswitch_enabled = False
-        except Exception as exc:
-            message = f"kill-switch disable failed: {exc}"
-            logger.error(message)
-            errors.append(message)
 
-        self._cleaned = True
+        self._started = False
+
+        if mark_cleaned:
+            self._cleaned = True
 
         if errors:
-            self._emit(
-                ConnectionEvent.ERROR,
-                error="; ".join(errors),
-            )
             logger.warning(
                 "Connection cleanup completed with %d error(s): %s",
                 len(errors),
                 "; ".join(errors),
             )
+            self._emit(
+                ConnectionEvent.ERROR,
+                error="; ".join(errors),
+            )
 
-        self._emit(ConnectionEvent.CLEANUP_DONE)
+        if emit_cleanup_done:
+            self._emit(ConnectionEvent.CLEANUP_DONE)
+
+        return errors
+
+    async def cleanup(self) -> None:
+        if self._cleaned:
+            return
+
+        errors: list[str] = []
+
+        try:
+            try:
+                self._unregister_signals()
+            except Exception as exc:
+                message = f"signal cleanup failed: {exc}"
+                logger.warning(message)
+                errors.append(message)
+
+            try:
+                self.ks_svc.stop_watcher()
+            except Exception as exc:
+                message = f"kill-switch watcher stop failed: {exc}"
+                logger.warning(message)
+                errors.append(message)
+
+            try:
+                result = self.engine_svc.remove_outbound(
+                    raise_on_error=True,
+                )
+                await self._await_if_needed(result)
+            except Exception as exc:
+                message = f"engine outbound cleanup failed: {exc}"
+                logger.warning(message)
+                errors.append(message)
+
+            try:
+                result = self.engine_svc.close()
+                await self._await_if_needed(result)
+            except Exception as exc:
+                message = f"engine client cleanup failed: {exc}"
+                logger.warning(message)
+                errors.append(message)
+
+            try:
+                self.process_svc.stop()
+            except Exception as exc:
+                message = f"xray process cleanup failed: {exc}"
+                logger.warning(message)
+                errors.append(message)
+            else:
+                self._emit(ConnectionEvent.PROCESS_STOPPED)
+
+            try:
+                if self._killswitch_enabled:
+                    self.ks_svc.disable()
+                    self._killswitch_enabled = False
+            except Exception as exc:
+                message = f"kill-switch disable failed: {exc}"
+                logger.error(message)
+                errors.append(message)
+        finally:
+            self._cleaned = True
+
+            if errors:
+                self._emit(
+                    ConnectionEvent.ERROR,
+                    error="; ".join(errors),
+                )
+                logger.warning(
+                    "Connection cleanup completed with %d error(s): %s",
+                    len(errors),
+                    "; ".join(errors),
+                )
+
+            self._emit(ConnectionEvent.CLEANUP_DONE)
 
     def request_stop(self) -> None:
         self._stop_event.set()

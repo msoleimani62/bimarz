@@ -1,12 +1,17 @@
 """
 QThread wrapper around the async connect orchestration.
 
-پوشش QThread دور orchestration async اتصال.
+Wraps asynchronous connection orchestration in a Qt worker thread.
+
+پوشش QThread برای orchestration غیرهمزمان اتصال.
+
+منطق اتصال غیرهمزمان را در یک thread پس‌زمینه Qt اجرا می‌کند.
 """
 
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import os
 import tempfile
@@ -31,21 +36,25 @@ logger = logging.getLogger(__name__)
 
 
 def detect_default_interface() -> str:
-    """Detect the interface used by the default route (best-effort, Linux-focused).
+    """Detect the interface used by the default route.
 
-    تشخیص interface مربوط به مسیر پیش‌فرض (بهترین تلاش ممکن، تمرکز روی لینوکس).
+    تشخیص interface مربوط به مسیر پیش‌فرض.
     """
     route_path = Path("/proc/net/route")
 
     try:
         with open(route_path, encoding="utf-8") as route_file:
             next(route_file, None)
+
             for line in route_file:
                 fields = line.strip().split()
+
                 if len(fields) >= 11 and fields[1] == "00000000":
                     iface = fields[0]
+
                     if iface and iface != "lo":
                         return iface
+
     except OSError as exc:
         logger.debug(
             "Unable to inspect /proc/net/route: %s",
@@ -72,9 +81,9 @@ def detect_default_interface() -> str:
 
 
 class ConnectionWorker(QThread):
-    """Runs bimarz connect logic in a background thread so the GUI stays responsive.
+    """Run connection orchestration without blocking the GUI.
 
-    منطق اتصال bimarz را در یک thread پس‌زمینه اجرا می‌کند تا GUI پاسخگو بماند.
+    اجرای orchestration اتصال بدون مسدود کردن GUI.
     """
 
     connected = Signal(str)
@@ -107,17 +116,23 @@ class ConnectionWorker(QThread):
         self._ks_manager = KillSwitchManager()
         self._client: Any | None = None
         self._runtime_dir: tempfile.TemporaryDirectory | None = None
+        self._outbound_owned = False
 
     def stop(self) -> None:
-        """Request graceful disconnection, cancel running tasks and wake the loop."""
+        """Request graceful disconnection and task cancellation.
+
+        Request graceful shutdown and cancellation of active tasks.
+        """
         self._stop_event.set()
 
         loop = self._loop
+
         if loop is not None and not loop.is_closed():
             with suppress(Exception):
 
                 def _cancel_all() -> None:
                     current = asyncio.current_task()
+
                     for task in asyncio.all_tasks(loop):
                         if task is not current:
                             task.cancel()
@@ -135,10 +150,14 @@ class ConnectionWorker(QThread):
             self._run_connect()
 
         except EngineNotBuiltError:
-            self.connection_error.emit("Rust extension not built. Run: maturin develop --release")
+            self.connection_error.emit(
+                "Rust extension not built. Run: maturin develop --release",
+            )
 
         except BinaryNotFoundError as exc:
-            self.connection_error.emit(f"xray-core binary not found: {exc}")
+            self.connection_error.emit(
+                f"xray-core binary not found: {exc}",
+            )
 
         except KillSwitchTriggeredError as exc:
             self.killswitch_triggered.emit(str(exc))
@@ -166,7 +185,9 @@ class ConnectionWorker(QThread):
         binary_path = find_xray_binary()
 
         if binary_path is None:
-            raise BinaryNotFoundError("xray-core binary not found. Install it or pass --xray-bin.")
+            raise BinaryNotFoundError(
+                "xray-core binary not found. Install it or pass --xray-bin.",
+            )
 
         self._runtime_dir = tempfile.TemporaryDirectory()
         config_path = Path(self._runtime_dir.name) / "connect-runtime.json"
@@ -184,54 +205,68 @@ class ConnectionWorker(QThread):
             config_path=config_path,
         )
 
-        self._xray_process.start()
+        try:
+            self._xray_process.start()
 
-        ready_deadline = time.monotonic() + 5.0
-        while time.monotonic() < ready_deadline:
-            if self._xray_process.is_alive():
-                break
-            if self.should_stop():
-                return
-            time.sleep(0.1)
-        else:
-            raise RuntimeError("xray-core failed to become ready")
+            ready_deadline = time.monotonic() + 5.0
 
-        self._run_async_fn(
-            self._async_connect,
-            get_engine_client_class,
-            _connect_with_retry,
-            _outbound_kwargs,
-        )
+            while time.monotonic() < ready_deadline:
+                if self._xray_process.is_alive():
+                    break
 
-        if self._enable_killswitch:
-            getuid = getattr(os, "getuid", None)
-            xray_uid = getuid() if callable(getuid) else None
+                if self.should_stop():
+                    return
 
-            try:
+                time.sleep(0.1)
+            else:
+                raise RuntimeError("xray-core failed to become ready")
+
+            self._run_async_fn(
+                self._async_connect,
+                get_engine_client_class,
+                _connect_with_retry,
+                _outbound_kwargs,
+            )
+
+            if self._enable_killswitch:
+                getuid = getattr(os, "getuid", None)
+                xray_uid = getuid() if callable(getuid) else None
+
                 self._ks_manager.activate(
                     interface=self._ks_interface,
                     xray_uid=xray_uid,
                 )
-            except Exception:
-                logger.exception("Kill-switch activation failed")
-                if self._xray_process is not None:
-                    with suppress(Exception):
-                        self._xray_process.stop()
-                raise
 
-            if self._xray_process is None:
-                raise RuntimeError("Xray process was not created.")
+                if self._xray_process is None:
+                    raise RuntimeError("Xray process was not created.")
 
-            self._ks_manager.start_process_watcher(poll_fn=self._xray_process.is_alive)
+                self._ks_manager.start_process_watcher(
+                    poll_fn=self._xray_process.is_alive,
+                )
 
-        self._connected_once = True
-        self.connected.emit(self._profile.remark)
+            self._connected_once = True
+            self.connected.emit(self._profile.remark)
 
-        if self._all_profiles and len(self._all_profiles) > 1:
-            manager = FailoverManager(active_profile_id=self._profile.profile_id)
-            self._failover_loop(manager)
-        else:
-            self._simple_watch_loop()
+            if self._all_profiles and len(self._all_profiles) > 1:
+                manager = FailoverManager(
+                    active_profile_id=self._profile.profile_id,
+                )
+                self._failover_loop(manager)
+            else:
+                self._simple_watch_loop()
+
+        except Exception:
+            with suppress(Exception):
+                self._ks_manager.stop_process_watcher()
+
+            with suppress(Exception):
+                if self._ks_manager.state.active:
+                    self._ks_manager.deactivate()
+
+            with suppress(Exception):
+                self._xray_process.stop()
+
+            raise
 
     def _run_async_fn(
         self,
@@ -245,7 +280,12 @@ class ConnectionWorker(QThread):
         if self._loop.is_closed():
             raise RuntimeError("Worker event loop is already closed.")
 
-        return self._loop.run_until_complete(asyncio.wait_for(fn(*args), timeout=timeout))
+        return self._loop.run_until_complete(
+            asyncio.wait_for(
+                fn(*args),
+                timeout=timeout,
+            ),
+        )
 
     async def _async_connect(
         self,
@@ -263,19 +303,30 @@ class ConnectionWorker(QThread):
         if self._client is None:
             raise RuntimeError("Engine client was not created.")
 
-        await self._client.add_vless_reality_outbound(**outbound_kwargs(self._profile))
+        kwargs = outbound_kwargs(self._profile)
+        kwargs["tag"] = ACTIVE_OUTBOUND_TAG
+
+        await self._client.add_vless_reality_outbound(**kwargs)
+        self._outbound_owned = True
 
     def _failover_loop(self, manager: FailoverManager) -> None:
         from bimarz.constants import FAILOVER_CHECK_INTERVAL_SECONDS
 
         while not self.should_stop():
-            self._interruptible_sleep(FAILOVER_CHECK_INTERVAL_SECONDS)
+            self._interruptible_sleep(
+                FAILOVER_CHECK_INTERVAL_SECONDS,
+            )
 
             if self.should_stop():
                 break
 
-            if self._enable_killswitch and not self._ks_manager.is_watcher_alive():
-                raise KillSwitchTriggeredError("xray-core stopped unexpectedly. Kill-switch triggered.")
+            if (
+                self._enable_killswitch
+                and not self._ks_manager.is_watcher_alive()
+            ):
+                raise KillSwitchTriggeredError(
+                    "xray-core stopped unexpectedly. Kill-switch triggered.",
+                )
 
             try:
                 self._run_async_fn(
@@ -304,7 +355,9 @@ class ConnectionWorker(QThread):
         if not manager.should_failover():
             return
 
-        all_results = await check_all_profiles(list(self._all_profiles.values()))
+        all_results = await check_all_profiles(
+            list(self._all_profiles.values()),
+        )
 
         for health_result in all_results.values():
             self._emit_latency(health_result)
@@ -315,10 +368,15 @@ class ConnectionWorker(QThread):
             return
 
         next_profile = self._all_profiles.get(next_id)
+
         if next_profile is None:
             return
 
-        remove_outbound = getattr(self._client, "remove_outbound", None)
+        remove_outbound = getattr(
+            self._client,
+            "remove_outbound",
+            None,
+        )
         add_outbound = getattr(
             self._client,
             "add_vless_reality_outbound",
@@ -329,17 +387,48 @@ class ConnectionWorker(QThread):
             return
 
         old_kwargs = _outbound_kwargs(self._profile)
+        old_kwargs["tag"] = ACTIVE_OUTBOUND_TAG
+
         new_kwargs = _outbound_kwargs(next_profile)
+        new_kwargs["tag"] = ACTIVE_OUTBOUND_TAG
 
         try:
             await remove_outbound(ACTIVE_OUTBOUND_TAG)
+            self._outbound_owned = False
+
             await add_outbound(**new_kwargs)
-        except Exception:
-            logger.exception("Failover switch failed. Restoring previous profile.")
-            with suppress(Exception):
-                await remove_outbound(ACTIVE_OUTBOUND_TAG)
-            with suppress(Exception):
+            self._outbound_owned = True
+
+        except Exception as exc:
+            logger.exception(
+                "Failover switch failed. Restoring previous profile.",
+            )
+
+            recovery_errors: list[str] = []
+
+            try:
+                if self._outbound_owned:
+                    await remove_outbound(ACTIVE_OUTBOUND_TAG)
+                    self._outbound_owned = False
+            except Exception as recovery_exc:
+                recovery_errors.append(
+                    f"remove during recovery failed: {recovery_exc}",
+                )
+
+            try:
                 await add_outbound(**old_kwargs)
+                self._outbound_owned = True
+            except Exception as recovery_exc:
+                recovery_errors.append(
+                    f"restore during recovery failed: {recovery_exc}",
+                )
+
+            message = f"failover switch failed: {exc}"
+
+            if recovery_errors:
+                message += f"; {'; '.join(recovery_errors)}"
+
+            logger.error(message)
             return
 
         try:
@@ -347,12 +436,36 @@ class ConnectionWorker(QThread):
                 next_id,
                 reason=f"{manager.threshold} consecutive failures",
             )
-        except Exception:
-            logger.exception("Failed updating failover state - rolling back outbound")
-            with suppress(Exception):
-                await remove_outbound(ACTIVE_OUTBOUND_TAG)
-            with suppress(Exception):
+        except Exception as exc:
+            logger.exception(
+                "Failed updating failover state; restoring previous profile.",
+            )
+
+            recovery_errors: list[str] = []
+
+            try:
+                if self._outbound_owned:
+                    await remove_outbound(ACTIVE_OUTBOUND_TAG)
+                    self._outbound_owned = False
+            except Exception as recovery_exc:
+                recovery_errors.append(
+                    f"remove during state recovery failed: {recovery_exc}",
+                )
+
+            try:
                 await add_outbound(**old_kwargs)
+                self._outbound_owned = True
+            except Exception as recovery_exc:
+                recovery_errors.append(
+                    f"restore during state recovery failed: {recovery_exc}",
+                )
+
+            message = f"failover state update failed: {exc}"
+
+            if recovery_errors:
+                message += f"; {'; '.join(recovery_errors)}"
+
+            logger.error(message)
             return
 
         self.failover_occurred.emit(
@@ -367,14 +480,24 @@ class ConnectionWorker(QThread):
             if self._stop_event.wait(1.0):
                 break
 
-            if self._enable_killswitch and not self._ks_manager.is_watcher_alive():
-                raise KillSwitchTriggeredError("xray-core stopped unexpectedly. Kill-switch triggered.")
+            if (
+                self._enable_killswitch
+                and not self._ks_manager.is_watcher_alive()
+            ):
+                raise KillSwitchTriggeredError(
+                    "xray-core stopped unexpectedly. Kill-switch triggered.",
+                )
 
     def _interruptible_sleep(self, seconds: float) -> None:
         self._stop_event.wait(seconds)
 
     def _emit_latency(self, result: HealthCheckResult) -> None:
-        latency = result.latency_ms if result.latency_ms is not None else -1.0
+        latency = (
+            result.latency_ms
+            if result.latency_ms is not None
+            else -1.0
+        )
+
         self.latency_updated.emit(
             result.profile_id,
             latency,
@@ -384,7 +507,11 @@ class ConnectionWorker(QThread):
     def _cleanup(self) -> None:
         cleanup_errors: list[str] = []
 
-        if self._loop is not None and not self._loop.is_closed() and self._client is not None:
+        if (
+            self._loop is not None
+            and not self._loop.is_closed()
+            and self._client is not None
+        ):
             try:
                 self._run_async_fn(
                     self._async_cleanup,
@@ -396,6 +523,14 @@ class ConnectionWorker(QThread):
                 cleanup_errors.append(message)
             finally:
                 self._client = None
+                self._outbound_owned = False
+
+        try:
+            self._ks_manager.stop_process_watcher()
+        except Exception as exc:
+            message = f"kill-switch watcher stop failed: {exc}"
+            logger.warning(message)
+            cleanup_errors.append(message)
 
         try:
             if self._ks_manager.state.active:
@@ -406,24 +541,26 @@ class ConnectionWorker(QThread):
             cleanup_errors.append(message)
 
         if self._xray_process is not None:
+            process = self._xray_process
+            self._xray_process = None
+
             try:
-                self._xray_process.stop()
+                process.stop()
             except Exception as exc:
                 message = f"xray process stop failed: {exc}"
                 logger.warning(message)
                 cleanup_errors.append(message)
-            finally:
-                self._xray_process = None
 
         if self._runtime_dir is not None:
+            runtime = self._runtime_dir
+            self._runtime_dir = None
+
             try:
-                self._runtime_dir.cleanup()
+                runtime.cleanup()
             except Exception as exc:
                 message = f"runtime dir cleanup failed: {exc}"
                 logger.warning(message)
                 cleanup_errors.append(message)
-            finally:
-                self._runtime_dir = None
 
         if cleanup_errors:
             logger.warning(
@@ -449,6 +586,8 @@ class ConnectionWorker(QThread):
                 await remove_outbound(ACTIVE_OUTBOUND_TAG)
             except Exception as exc:
                 errors.append(f"remove outbound failed: {exc}")
+            else:
+                self._outbound_owned = False
 
         close = getattr(
             self._client,
@@ -459,10 +598,17 @@ class ConnectionWorker(QThread):
         if callable(close):
             try:
                 result = close()
-                if asyncio.iscoroutine(result):
+
+                if inspect.isawaitable(result):
                     await result
+
             except Exception as exc:
-                errors.append(f"engine client close failed: {exc}")
+                errors.append(
+                    f"engine client close failed: {exc}",
+                )
+
+        self._client = None
+        self._outbound_owned = False
 
         if errors:
             raise RuntimeError("; ".join(errors))

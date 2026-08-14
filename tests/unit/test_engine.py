@@ -121,7 +121,7 @@ async def test_add_outbound_delegates_to_engine(
     await service.add_outbound(_profile())
 
     client.add_vless_reality_outbound.assert_awaited_once_with(
-        tag="p1",
+        tag="bimarz-active",
         address="example.com",
         port=443,
     )
