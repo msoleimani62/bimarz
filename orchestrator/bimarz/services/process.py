@@ -1,6 +1,11 @@
 """
 xray-core process lifecycle service.
-سرویس مدیریت چرخه عمر فرآیند xray-core.
+
+Provides explicit process and runtime-directory ownership.
+
+سرویس چرخه عمر فرآیند xray-core.
+
+مالکیت صریح فرآیند و دایرکتوری runtime را مدیریت می‌کند.
 """
 
 from __future__ import annotations
@@ -24,24 +29,32 @@ class ProcessService:
     ) -> None:
         self.binary_finder = binary_finder or find_xray_binary
         self.config_builder = config_builder or build_connect_config
-        self.process_factory = process_factory or (lambda binary, config: XrayProcess(Path(binary), Path(config)))
+        self.process_factory = process_factory or (
+            lambda binary, config: XrayProcess(
+                Path(binary),
+                Path(config),
+            )
+        )
         self._proc: XrayProcess | None = None
         self._runtime_dir: tempfile.TemporaryDirectory | None = None
 
     def start(self, profile: ServerProfile) -> XrayProcess:
-        """Start xray-core process for the given profile.
-        فرآیند xray-core را برای پروفایل داده‌شده راه‌اندازی می‌کند.
-        توجه: کانفیگ پایه بدون profile ساخته می‌شود؛ پروفایل بعداً از طریق gRPC تزریق می‌شود.
-        Note: base config is built without profile; profile is injected later via gRPC.
+        """Start xray-core and acquire process ownership.
+
+        راه‌اندازی xray-core و به‌دست گرفتن مالکیت فرآیند.
         """
+        if self._proc is not None:
+            return self._proc
+
         binary = self.binary_finder()
         if binary is None:
             raise BinaryNotFoundError("xray-core binary not found")
 
-        self._runtime_dir = tempfile.TemporaryDirectory()
+        runtime_dir = tempfile.TemporaryDirectory()
+        self._runtime_dir = runtime_dir
 
         try:
-            config_path = Path(self._runtime_dir.name) / "connect-runtime.json"
+            config_path = Path(runtime_dir.name) / "connect-runtime.json"
             config = self.config_builder(enable_dns_guard=True)
             config_path.write_text(config, encoding="utf-8")
 
@@ -50,29 +63,39 @@ class ProcessService:
 
             proc = self.process_factory(binary, config_path)
             proc.start()
+
             self._proc = proc
             return proc
 
         except Exception:
+            self._proc = None
             self._cleanup_runtime()
             raise
 
     def stop(self) -> None:
-        """Stop the running xray process if any.
-        در صورت وجود فرآیند xray در حال اجرا را متوقف می‌کند.
+        """Stop the process and always release runtime ownership.
+
+        توقف فرآیند و آزادسازی قطعی مالکیت runtime.
         """
-        if self._proc is not None and self._proc.is_running():
-            self._proc.stop()
+        proc = self._proc
         self._proc = None
-        self._cleanup_runtime()
+
+        try:
+            if proc is not None:
+                proc.stop()
+        finally:
+            self._cleanup_runtime()
 
     def _cleanup_runtime(self) -> None:
-        """Remove the temporary runtime directory if it exists.
-        دایرکتوری runtime موقت را در صورت وجود حذف می‌کند.
+        """Remove the temporary runtime directory.
+
+        حذف دایرکتوری موقت runtime.
         """
-        if self._runtime_dir is not None:
-            self._runtime_dir.cleanup()
-            self._runtime_dir = None
+        runtime_dir = self._runtime_dir
+        self._runtime_dir = None
+
+        if runtime_dir is not None:
+            runtime_dir.cleanup()
 
     @property
     def process(self) -> XrayProcess | None:

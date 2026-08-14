@@ -1,7 +1,11 @@
 """
 gRPC engine connection service.
 
-سرویس اتصال به موتور gRPC.
+Provides explicit ownership and lifecycle management for the engine client.
+
+سرویس اتصال gRPC موتور.
+
+مالکیت و چرخه عمر کلاینت موتور را به‌صورت صریح مدیریت می‌کند.
 """
 
 from __future__ import annotations
@@ -23,7 +27,7 @@ logger = logging.getLogger(__name__)
 class EngineService:
     """Own the lifecycle of the gRPC engine client.
 
-    چرخه عمر کلاینت gRPC موتور را مدیریت می‌کند.
+    مدیریت چرخه عمر کلاینت gRPC موتور.
     """
 
     def __init__(self, config: AppConfig) -> None:
@@ -31,9 +35,9 @@ class EngineService:
         self._engine: EngineClient | None = None
 
     async def connect(self) -> EngineClient:
-        """Connect to the gRPC engine with retries.
+        """Connect to the engine and acquire client ownership.
 
-        با تلاش مجدد به موتور gRPC متصل می‌شود.
+        اتصال به engine و به‌دست گرفتن مالکیت کلاینت.
         """
         if self._engine is not None:
             return self._engine
@@ -45,18 +49,25 @@ class EngineService:
             max_retries=self.config.engine_retries,
             delay=self.config.engine_retry_delay,
         )
+
+        if engine is None:
+            raise RuntimeError("Engine connection returned no client")
+
         self._engine = engine
         return engine
 
     async def add_outbound(self, profile: ServerProfile) -> None:
-        """Add the VLESS Reality outbound for a profile.
+        """Create the canonical active outbound.
 
-        outbound از نوع VLESS Reality را برای پروفایل اضافه می‌کند.
+        ساخت outbound فعال با شناسه canonical.
         """
         if self._engine is None:
             raise RuntimeError("Engine not connected")
 
-        await self._engine.add_vless_reality_outbound(**outbound_kwargs(profile))
+        kwargs = outbound_kwargs(profile)
+        kwargs["tag"] = ACTIVE_OUTBOUND_TAG
+
+        await self._engine.add_vless_reality_outbound(**kwargs)
 
     async def remove_outbound(
         self,
@@ -66,7 +77,7 @@ class EngineService:
     ) -> None:
         """Remove an outbound and optionally propagate failures.
 
-        outbound را حذف می‌کند و در صورت درخواست، خطا را propagate می‌کند.
+        حذف outbound و در صورت نیاز انتقال خطا به caller.
         """
         if self._engine is None:
             return
@@ -74,14 +85,18 @@ class EngineService:
         try:
             await self._engine.remove_outbound(tag)
         except Exception as exc:
-            logger.warning("remove_outbound failed for %s: %s", tag, exc)
+            logger.warning(
+                "remove_outbound failed for %s: %s",
+                tag,
+                exc,
+            )
             if raise_on_error:
                 raise
 
     async def close(self) -> None:
-        """Release ownership of the engine client.
+        """Release engine ownership even when client close fails.
 
-        مالکیت کلاینت engine را به‌صورت صریح آزاد می‌کند.
+        آزادسازی مالکیت engine حتی در صورت شکست close.
         """
         engine = self._engine
         self._engine = None
@@ -105,6 +120,6 @@ class EngineService:
     def engine(self) -> EngineClient | None:
         """Return the currently owned engine client.
 
-        کلاینت engine تحت مالکیت سرویس را برمی‌گرداند.
+        کلاینت engine تحت مالکیت فعلی سرویس.
         """
         return self._engine

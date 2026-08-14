@@ -1,7 +1,11 @@
 """
 Phase 8 engine ownership tests.
 
+Tests explicit engine client ownership and release semantics.
+
 تست‌های مالکیت engine در فاز ۸.
+
+مالکیت صریح کلاینت engine و رفتار آزادسازی آن را بررسی می‌کند.
 """
 
 from __future__ import annotations
@@ -30,7 +34,7 @@ async def test_engine_service_close_releases_client() -> None:
 
 @pytest.mark.asyncio
 async def test_engine_service_close_is_safe_without_client() -> None:
-    """close() must be idempotent when no client is owned."""
+    """close() must be safe when no client is owned."""
     service = EngineService(AppConfig())
 
     await service.close()
@@ -40,7 +44,7 @@ async def test_engine_service_close_is_safe_without_client() -> None:
 
 @pytest.mark.asyncio
 async def test_engine_service_close_clears_reference_on_failure() -> None:
-    """Client ownership must be released even when close fails."""
+    """Ownership must be released even when client close fails."""
     client = MagicMock()
     client.close = AsyncMock(side_effect=RuntimeError("close failed"))
 
@@ -55,7 +59,7 @@ async def test_engine_service_close_clears_reference_on_failure() -> None:
 
 @pytest.mark.asyncio
 async def test_engine_service_remove_can_propagate_failure() -> None:
-    """Cleanup callers must be able to observe outbound removal failures."""
+    """Outbound removal failures must remain observable."""
     client = MagicMock()
     client.remove_outbound = AsyncMock(
         side_effect=RuntimeError("remove failed"),
@@ -66,3 +70,36 @@ async def test_engine_service_remove_can_propagate_failure() -> None:
 
     with pytest.raises(RuntimeError, match="remove failed"):
         await service.remove_outbound(raise_on_error=True)
+
+
+@pytest.mark.asyncio
+async def test_engine_service_add_uses_canonical_outbound_tag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Outbound creation must always use the canonical active tag."""
+    client = MagicMock()
+    client.add_vless_reality_outbound = AsyncMock()
+
+    service = EngineService(AppConfig())
+    service._engine = client
+
+    profile = MagicMock()
+    profile.outbound_config = {
+        "address": "example.com",
+        "port": 443,
+    }
+
+    monkeypatch.setattr(
+        "bimarz.services.engine.outbound_kwargs",
+        lambda _profile: {
+            "tag": "wrong-tag",
+            "address": "example.com",
+            "port": 443,
+        },
+    )
+
+    await service.add_outbound(profile)
+
+    kwargs = client.add_vless_reality_outbound.await_args.kwargs
+
+    assert kwargs["tag"] == "bimarz-active"
