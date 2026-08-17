@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "bimarz"
-version = "0.2.0"
+version = "0.2.1"
 description = "Cross-platform Xray-core orchestrator with VLESS, Reality, Vision, health checks, failover, kill switch, and DNS leak protection"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -119,6 +119,16 @@ exclude_lines = [
     "if TYPE_CHECKING:",
 ]
 
+# اسکن bandit را به سورس واقعی پروژه محدود می‌کند تا کدهای شخص ثالث در
+# .venv و آرتیفکت‌های build در target/ اسکن نشوند (که یافته‌های کاذب و
+# نامرتبط تولید می‌کردند و امتیاز سلامت امنیتی را به‌اشتباه پایین می‌آوردند).
+# Restricts the bandit scan to the project's own source so third-party code
+# under .venv and build artifacts under target/ are never scanned (they were
+# producing irrelevant false-positive findings and wrongly dragging down the
+# security health score).
+[tool.bandit]
+exclude_dirs = [".venv", "venv", "target", ".git", "__pycache__", ".mypy_cache", ".ruff_cache", ".pytest_cache"]
+
 [tool.ruff]
 target-version = "py310"
 line-length = 120
@@ -144,7 +154,7 @@ ignore = [
 "orchestrator/bimarz/failover.py" = ["RUF002"]
 "orchestrator/bimarz/gui/connection_worker.py" = ["RUF003"]
 "orchestrator/bimarz/gui/profile_table.py" = ["RUF002"]
-"orchestrator/bimarz/helpers.py" = ["RUF002"]
+"orchestrator/bimarz/helpers.py" = ["RUF002", "RUF003"]
 "orchestrator/bimarz/profiles.py" = ["RUF002"]
 "orchestrator/bimarz/protocols.py" = ["RUF002"]
 "orchestrator/bimarz/xray_manager.py" = ["RUF003"]

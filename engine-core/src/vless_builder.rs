@@ -258,6 +258,9 @@ mod tests {
             network: "tcp".to_string(),
             sni: "www.microsoft.com".to_string(),
             fingerprint: "chrome".to_string(),
+            // رمزگذاری base64url (بدون padding) از ۳۲ بایت صفر — کلیدی که از نظر
+            // نحوی معتبر است اما واقعی و رمزنگارانه نیست، و فقط برای تست مسیر
+            // encode/decode کافی است.
             // base64url (no padding) encoding of 32 zero bytes — a
             // syntactically valid but not cryptographically real key,
             // sufficient for testing the encode/decode path.

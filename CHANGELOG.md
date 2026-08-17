@@ -51,6 +51,15 @@ This file follows the [Keep a Changelog](https://keepachangelog.com/) format.
 - No runtime dependency was added to the project; `cargo-audit`, `pip-audit`, and `bandit` are CI-only security tooling.
 
 
+## [0.2.1] — 2026-08-17
+
+### Fixed — اصلاح شد
+
+- **`bandit` security scan:** افزودن پیکربندی `[tool.bandit]` در `pyproject.toml` برای محدودکردن اسکن به سورس واقعی پروژه؛ پیش‌تر بدون این پیکربندی، `bandit` وابستگی‌های شخص ثالث داخل `.venv/` را نیز اسکن می‌کرد و صدها یافته‌ی کاذب و بی‌ربط تولید می‌کرد که هم امتیاز سلامت امنیتی گزارش `sarand` را به‌اشتباه پایین می‌آورد و هم باعث تشخیص کاذب «خطای کامپایل یا lint شناسایی شد» در بخش «Known issues» می‌شد (چون رشته‌ی `error:` در خروجی خام اسکن این وابستگی‌ها ظاهر می‌شد).
+- Added a `[tool.bandit]` configuration block to `pyproject.toml` to scope the scan to the project's own source. Without it, `bandit` was also scanning third-party dependencies inside `.venv/`, producing hundreds of irrelevant false-positive findings that both dragged down the security health score in `sarand` reports and caused a false "Compilation or lint errors were detected" flag under "Known issues" (because the literal string `error:` appeared in the raw scan output of those dependencies).
+- **کامنت‌های دوزبانه:** افزودن خط توضیح فارسی مفقود در `orchestrator/bimarz/helpers.py` (۵ مورد) و `engine-core/src/vless_builder.rs` (۱ مورد) تا با قانون کدنویسی پروژه (هر کامنت باید هم خط فارسی و هم خط انگلیسی داشته باشد) مطابقت پیدا کند. بدون تغییر منطقی.
+- **Bilingual comments:** added the missing Persian comment line in `orchestrator/bimarz/helpers.py` (5 spots) and `engine-core/src/vless_builder.rs` (1 spot) to comply with the project's coding rule that every comment needs both a Persian and an English line. No logic changes.
+
 ## [0.2.0] — 2026-08-03
 
 ### Added — افزوده شد (فاز ۵: تکمیل CLI و بسته‌بندی)

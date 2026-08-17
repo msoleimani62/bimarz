@@ -13,6 +13,7 @@ from bimarz.models import ServerProfile
 
 def get_current_uid() -> int | None:
     """Return the current process UID when supported."""
+    # در صورت پشتیبانی سیستم‌عامل، شناسه کاربر فعلی را برمی‌گرداند.
     # Return the current user ID when supported by the operating system.
     getuid = getattr(os, "getuid", None)
 
@@ -24,6 +25,7 @@ def get_current_uid() -> int | None:
 
 def get_outbound(profile: ServerProfile) -> dict[str, Any]:
     """Return the raw outbound configuration stored on a profile."""
+    # داده outbound نامعتبر یا موجود‌نبودن آن را به یک dict خالی نگاشت می‌کند.
     # Normalize missing or invalid outbound data to an empty mapping.
     outbound = getattr(profile, "outbound_config", None)
 
@@ -35,6 +37,7 @@ def get_outbound(profile: ServerProfile) -> dict[str, Any]:
 
 def format_profile_address(profile: ServerProfile) -> str:
     """Return a display-friendly address for a profile."""
+    # هنگامی که آدرس outbound در دسترس نیست، یک مقدار پیش‌فرض پایدار برمی‌گرداند.
     # Provide a stable fallback when the outbound address is unavailable.
     address = get_outbound(profile).get("address")
 
@@ -43,6 +46,7 @@ def format_profile_address(profile: ServerProfile) -> str:
 
 def outbound_kwargs(profile: ServerProfile) -> dict[str, Any]:
     """Build arguments expected by add_vless_reality_outbound."""
+    # مقادیر مورد نیاز سازنده outbound در Rust را نرمال‌سازی می‌کند.
     # Normalize the values required by the Rust outbound builder.
     outbound = get_outbound(profile)
 
@@ -73,5 +77,6 @@ def outbound_kwargs(profile: ServerProfile) -> dict[str, Any]:
 
 def profiles_by_id(profiles: list[ServerProfile]) -> dict[str, ServerProfile]:
     """Index profiles by profile_id."""
+    # برای بازیابی سریع پروفایل‌ها، یک جدول جستجوی مستقیم می‌سازد.
     # Build a direct lookup table for efficient profile retrieval.
     return {profile.profile_id: profile for profile in profiles}
