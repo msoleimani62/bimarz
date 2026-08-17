@@ -428,7 +428,7 @@ README باید هنگام تغییر این منابع بررسی و در صو�
 نسخه پروژه باید از metadata رسمی repository پیروی کند.
 
 ```text
-BiMarz 0.2.1
+BiMarz 0.2.2
 ```
 
 این مقدار باید هنگام release با version واقعی package و engine تطبیق داده شود.
@@ -871,7 +871,7 @@ The README should be reviewed whenever these sources change.
 The project version must follow the repository metadata and its defined source of truth.
 
 ```text
-BiMarz 0.2.1
+BiMarz 0.2.2
 ```
 
 This value must be verified against the actual package and engine versions when preparing a release.

@@ -3,10 +3,15 @@
 فرمت این فایل بر اساس [Keep a Changelog](https://keepachangelog.com/) است.
 This file follows the [Keep a Changelog](https://keepachangelog.com/) format.
 
-## [Unreleased]
+## [0.2.2] — 2026-08-17
 
 ### Added — افزوده شد
 
+- `engine-core/xray-proto-pin.env`: single source of truth for the Xray-core proto version (tag + immutable commit), read by the fetch script, `build.rs`, CI/release workflows and docs.
+- `scripts/fetch-protos.sh`: one authoritative proto fetch mechanism — verifies the pinned immutable commit after cloning, validates the `app/`/`common/` trees, and cleans the destination before copying.
+- `build.rs` now emits `cargo:rerun-if-changed` for the proto tree and pin file, compiles into a dedicated `OUT_DIR/pb` directory (no stale-file contamination), sorts proto inputs for deterministic builds, and exposes the pinned tag to the extension as `BIMARZ_XRAY_PROTO_TAG`.
+- `bimarz doctor` now warns when the running xray-core binary version does not match the proto bindings the Rust extension was built against.
+- Release pipeline: tag/version consistency gate (`v*` tag must equal the `pyproject.toml` version), per-interpreter wheel builds for Python 3.10–3.13, post-build static + runtime artifact validation, and Python 3.10 added to the CI test matrix.
 - Phase 8 lifecycle regression tests (`tests/test_phase8_lifecycle.py`).
 - Phase 8 contract tests (`tests/test_phase8_contracts.py`).
 - Phase 8 GUI worker lifecycle tests (`tests/test_phase8_gui_worker.py`).
@@ -27,6 +32,12 @@ This file follows the [Keep a Changelog](https://keepachangelog.com/) format.
 
 ### Changed — تغییر یافت
 
+- `BIMARZ_VERSION` is resolved from installed package metadata (`importlib.metadata`); `pyproject.toml` is the single version source of truth, with a documented source-tree fallback.
+- maturin constraint unified to `>=1.8,<2.0` across `pyproject.toml`, `scripts/build-release.sh` and the workflows.
+- Release workflow uses the same pinned Rust toolchain (1.97.1) as CI, installs `protobuf-compiler`, fetches protos via `scripts/fetch-protos.sh`, runs the clippy gate, and pins `softprops/action-gh-release` to an immutable commit SHA.
+- `scripts/build-release.sh` respects an active virtual environment, no longer blanket-upgrades pip/maturin, fixes the broken aarch64 flow (maturin `--zig` instead of the redundant `cargo zigbuild` + plain `maturin build` sequence), and validates every produced wheel (metadata, version vs `pyproject.toml`, native module presence).
+- `docs/INSTALL.md` corrected: real gRPC status meanings, kernel vs software-fallback kill-switch scope, Termux (bionic) vs NetHunter/proot (glibc) wheel compatibility, per-Python-version wheel selection, and safe step-labeled uninstall instructions.
+- CI/security workflows now fetch the pinned proto tree (and install `protobuf-compiler` where the package is built) before any `maturin`/`pip install .` step, and the xray-core binary used in integration tests is the same version as the proto pin instead of a floating unrelated one.
 - `ConnectionService.start()` now performs transactional startup rollback.
 - `ConnectionService.cleanup()` performs multi-resource cleanup and reports cleanup errors.
 - `EngineService` owns and explicitly closes its engine client.
@@ -36,6 +47,8 @@ This file follows the [Keep a Changelog](https://keepachangelog.com/) format.
 
 ### Security — امنیت
 
+- Xray proto fetch is pinned to an immutable upstream commit and verified after every clone, so a re-targeted upstream tag fails the build loudly.
+- `softprops/action-gh-release` is pinned to an immutable commit SHA in the release workflow.
 - Added scheduled dependency auditing to the GitHub Actions CI pipeline as part of phase 6.
 - Rust dependencies are audited with `cargo-audit`.
 - Installed Python dependencies are audited with `pip-audit`.
@@ -51,16 +64,7 @@ This file follows the [Keep a Changelog](https://keepachangelog.com/) format.
 - No runtime dependency was added to the project; `cargo-audit`, `pip-audit`, and `bandit` are CI-only security tooling.
 
 
-## [0.2.1] — 2026-08-17
-
-### Fixed — اصلاح شد
-
-- **`bandit` security scan:** افزودن پیکربندی `[tool.bandit]` در `pyproject.toml` برای محدودکردن اسکن به سورس واقعی پروژه؛ پیش‌تر بدون این پیکربندی، `bandit` وابستگی‌های شخص ثالث داخل `.venv/` را نیز اسکن می‌کرد و صدها یافته‌ی کاذب و بی‌ربط تولید می‌کرد که هم امتیاز سلامت امنیتی گزارش `sarand` را به‌اشتباه پایین می‌آورد و هم باعث تشخیص کاذب «خطای کامپایل یا lint شناسایی شد» در بخش «Known issues» می‌شد (چون رشته‌ی `error:` در خروجی خام اسکن این وابستگی‌ها ظاهر می‌شد).
-- Added a `[tool.bandit]` configuration block to `pyproject.toml` to scope the scan to the project's own source. Without it, `bandit` was also scanning third-party dependencies inside `.venv/`, producing hundreds of irrelevant false-positive findings that both dragged down the security health score in `sarand` reports and caused a false "Compilation or lint errors were detected" flag under "Known issues" (because the literal string `error:` appeared in the raw scan output of those dependencies).
-- **کامنت‌های دوزبانه:** افزودن خط توضیح فارسی مفقود در `orchestrator/bimarz/helpers.py` (۵ مورد) و `engine-core/src/vless_builder.rs` (۱ مورد) تا با قانون کدنویسی پروژه (هر کامنت باید هم خط فارسی و هم خط انگلیسی داشته باشد) مطابقت پیدا کند. بدون تغییر منطقی.
-- **Bilingual comments:** added the missing Persian comment line in `orchestrator/bimarz/helpers.py` (5 spots) and `engine-core/src/vless_builder.rs` (1 spot) to comply with the project's coding rule that every comment needs both a Persian and an English line. No logic changes.
-
-## [0.2.0] — 2026-08-03
+## [0.2.2] — 2026-08-03
 
 ### Added — افزوده شد (فاز ۵: تکمیل CLI و بسته‌بندی)
 
@@ -77,7 +81,7 @@ This file follows the [Keep a Changelog](https://keepachangelog.com/) format.
 
 - `orchestrator/bimarz/models.py`: `DoctorReport.grpc_reachable: bool` replaced by `grpc_status: GrpcStatus` and `grpc_endpoint: str` for richer diagnostics.
 - `orchestrator/bimarz/cli.py`: `_render_doctor_report` now color-codes and explains each `GrpcStatus` state.
-- `orchestrator/bimarz/constants.py`: version bumped to `0.2.0` (synchronized with `pyproject.toml`).
+- `orchestrator/bimarz/constants.py`: version bumped to `0.2.2` (synchronized with `pyproject.toml`).
 - `orchestrator/bimarz/cli.py`: fully modularized — all business logic moved to `commands/` and `services/` modules; cli.py reduced from ~1070 to ~117 lines.
 
 ### Fixed — رفع شد
@@ -110,6 +114,6 @@ This file follows the [Keep a Changelog](https://keepachangelog.com/) format.
 
 ## Version Links
 
-[Unreleased]: https://github.com/msoleimani62/bimarz/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/msoleimani62/bimarz/releases/tag/v0.2.0
+[Unreleased]: https://github.com/msoleimani62/bimarz/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/msoleimani62/bimarz/releases/tag/v0.2.2
 [0.1.0]: https://github.com/msoleimani62/bimarz/releases/tag/v0.1.0

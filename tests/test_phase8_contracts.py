@@ -14,10 +14,9 @@ from __future__ import annotations
 
 import json
 
+from bimarz import constants, xray_config
 from bimarz.helpers import outbound_kwargs
 from bimarz.models import ServerProfile
-
-from bimarz import constants, xray_config
 
 
 def _profile() -> ServerProfile:

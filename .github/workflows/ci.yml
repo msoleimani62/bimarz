@@ -18,16 +18,14 @@ permissions:
 # Cancel previous runs on the same branch
 # لغو اجرای قبلی روی همان شاخه
 concurrency:
-  group: \( {{ github.workflow }}- \){{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
   RUST_TOOLCHAIN: "1.97.1"
   PROTOBUF_PACKAGE: protobuf-compiler
   BIMARZ_PROFILE_PASSWORD: test123
-  # Xray-core version used in integration tests
-  # نسخه xray-core مورد استفاده در تست‌های یکپارچگی
-  XRAY_VERSION: "25.3.6"
+  MATURIN_CONSTRAINT: "maturin>=1.8,<2.0"
 
 jobs:
   python-tests:
@@ -38,7 +36,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Matches the full requires-python = ">=3.10" support claim.
+        # با ادعای پشتیبانی requires-python = ">=3.10" مطابقت دارد.
         python-version:
+          - "3.10"
           - "3.11"
           - "3.12"
           - "3.13"
@@ -61,10 +62,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            \~/.cargo
-            \~/.rustup
+            ~/.cargo
+            ~/.rustup
             target
-          key: cargo-\( {{ runner.os }}- \){{ hashFiles('**/Cargo.lock') }}
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             cargo-${{ runner.os }}-
 
@@ -73,13 +74,21 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ${{ env.PROTOBUF_PACKAGE }}
 
+      # The proto tree is not committed; fetch the pinned tree before any
+      # build step (build.rs refuses to compile without it).
+      # درخت proto در ریپازیتوری commit نشده؛ قبل از هر مرحله‌ی build باید
+      # درخت پین‌شده واکشی شود (build.rs بدون آن از کامپایل امتناع می‌کند).
+      - name: Fetch pinned xray-core proto files
+        shell: bash
+        run: ./scripts/fetch-protos.sh
+
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
           # Install maturin to build the Rust extension
           # نصب maturin برای ساخت افزونه راست
-          pip install "maturin>=1.8,<2"
+          pip install "${{ env.MATURIN_CONSTRAINT }}"
 
       - name: Build Rust extension
         run: maturin develop --release
@@ -120,10 +129,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            \~/.cargo
-            \~/.rustup
+            ~/.cargo
+            ~/.rustup
             target
-          key: cargo-\( {{ runner.os }}- \){{ hashFiles('**/Cargo.lock') }}
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             cargo-${{ runner.os }}-
 
@@ -171,10 +180,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            \~/.cargo
-            \~/.rustup
+            ~/.cargo
+            ~/.rustup
             target
-          key: cargo-\( {{ runner.os }}- \){{ hashFiles('**/Cargo.lock') }}
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             cargo-${{ runner.os }}-
 
@@ -183,10 +192,23 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ${{ env.PROTOBUF_PACKAGE }}
 
-      - name: Install xray-core
+      # Integration tests must exercise the same Xray version the proto
+      # bindings are pinned to — never an unrelated floating version.
+      # تست‌های یکپارچگی باید همان نسخه‌ی Xrayای را اجرا کنند که bindingهای
+      # proto به آن پین شده‌اند — نه یک نسخه‌ی شناور نامرتبط.
+      - name: Fetch pinned xray-core proto files
+        shell: bash
+        run: ./scripts/fetch-protos.sh
+
+      - name: Install xray-core (same version as the proto pin)
+        shell: bash
         run: |
+          set -euo pipefail
+          source engine-core/xray-proto-pin.env
+          XRAY_VERSION="${XRAY_PROTO_TAG#v}"
+          echo "Installing xray-core ${XRAY_VERSION} (proto pin: ${XRAY_PROTO_TAG})"
           curl -fsSL \
-            "https://github.com/XTLS/Xray-core/releases/download/v${{ env.XRAY_VERSION }}/Xray-linux-64.zip" \
+            "https://github.com/XTLS/Xray-core/releases/download/v${XRAY_VERSION}/Xray-linux-64.zip" \
             -o /tmp/xray.zip
 
           sudo unzip -o /tmp/xray.zip -d /usr/local/bin xray
@@ -201,7 +223,7 @@ jobs:
 
       - name: Install maturin
         run: |
-          pip install "maturin>=1.8,<2"
+          pip install "${{ env.MATURIN_CONSTRAINT }}"
 
       - name: Build Rust extension
         run: |

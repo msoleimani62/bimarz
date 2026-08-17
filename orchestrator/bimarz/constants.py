@@ -4,9 +4,29 @@ Project-wide constants.
 ثابت‌های سراسری پروژه.
 """
 
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _package_version
 from pathlib import Path
 
-BIMARZ_VERSION = "0.2.0"
+
+def _resolve_bimarz_version() -> str:
+    """Resolve the project version from the installed package metadata.
+
+    `pyproject.toml` is the single source of truth for the BiMarz version;
+    the constant below is only a fallback for running from a bare source
+    tree where the package was never installed.
+
+    نسخه‌ی پروژه از metadata پکیج نصب‌شده خوانده می‌شود. `pyproject.toml`
+    تنها مرجع معتبر نسخه‌ی BiMarz است؛ مقدار ثابت پایین فقط fallback برای
+    اجرا از درخت سورس خام است که پکیج در آن نصب نشده.
+    """
+    try:
+        return _package_version("bimarz")
+    except PackageNotFoundError:
+        return "0.2.2"  # fallback: keep in sync with pyproject.toml
+
+
+BIMARZ_VERSION = _resolve_bimarz_version()
 
 # دایرکتوری تنظیمات کاربر: پروفایل‌های سرور رمزنگاری‌شده، لاگ‌ها و کش وضعیت.
 # User config directory: encrypted server profiles, logs, and cached state.

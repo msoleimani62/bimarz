@@ -51,6 +51,20 @@ jobs:
           python-version: "3.13"
           cache: pip
 
+      # `pip install .` compiles the Rust extension via build.rs, which
+      # refuses to build without the pinned proto tree (and needs protoc).
+      # دستور `pip install .` اکستنشن Rust را از طریق build.rs کامپایل
+      # می‌کند که بدون درخت proto پین‌شده از build امتناع می‌کند (و به
+      # protoc هم نیاز دارد).
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+
+      - name: Fetch pinned xray-core proto files
+        shell: bash
+        run: ./scripts/fetch-protos.sh
+
       - name: Install project
         run: |
           python -m pip install --upgrade pip
@@ -76,6 +90,19 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
+
+      # Same reason as the pip-audit job: building the package requires the
+      # pinned proto tree and protoc.
+      # همان دلیل job مربوط به pip-audit: ساخت پکیج به درخت proto پین‌شده
+      # و protoc نیاز دارد.
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+
+      - name: Fetch pinned xray-core proto files
+        shell: bash
+        run: ./scripts/fetch-protos.sh
 
       - name: Install project and bandit
         run: |

@@ -89,6 +89,27 @@ def get_batch_health_check_function():
     return check_servers_health
 
 
+def get_xray_proto_version() -> str | None:
+    """Return the Xray-core proto tag the built extension was compiled
+    against (e.g. "v1.8.24"), or None when the Rust extension is not built
+    or was built before this metadata existed.
+
+    تگ proto مربوط به Xray-core که اکستنشن ساخته‌شده با آن کامپایل شده را
+    برمی‌گرداند (مثل "v1.8.24")، یا None وقتی اکستنشن Rust ساخته نشده یا
+    از قبل از وجود این metadata ساخته شده است.
+    """
+    try:
+        from bimarz._engine_core import xray_proto_version
+    except ImportError:
+        return None
+    except Exception:  # pragma: no cover - defensive boundary
+        return None
+    try:
+        return str(xray_proto_version())
+    except Exception:  # pragma: no cover - defensive boundary
+        return None
+
+
 async def probe_grpc_with_engine(endpoint: str, timeout: float) -> bool:
     """Attempts a real gRPC connection through the compiled Rust extension.
     Returns True if the endpoint responds to a gRPC call (even an error

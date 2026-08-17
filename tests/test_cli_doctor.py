@@ -178,7 +178,7 @@ class TestRenderDoctorReport:
 
     def test_shows_version_line(self, console_mock) -> None:
         report = DoctorReport(
-            bimarz_version="0.2.0",
+            bimarz_version="0.2.2",
             environment=Environment.DESKTOP_LINUX,
             xray_binary_found=False,
             xray_binary_path=None,
@@ -190,11 +190,11 @@ class TestRenderDoctorReport:
         )
         _render_doctor_report(report)
         printed = " ".join(str(call) for call in console_mock.print.call_args_list)
-        assert "0.2.0" in printed
+        assert "0.2.2" in printed
 
     def test_shows_binary_not_found_with_hint(self, console_mock) -> None:
         report = DoctorReport(
-            bimarz_version="0.2.0",
+            bimarz_version="0.2.2",
             environment=Environment.DESKTOP_LINUX,
             xray_binary_found=False,
             xray_binary_path=None,
@@ -211,7 +211,7 @@ class TestRenderDoctorReport:
 
     def test_shows_binary_found_with_version(self, console_mock) -> None:
         report = DoctorReport(
-            bimarz_version="0.2.0",
+            bimarz_version="0.2.2",
             environment=Environment.DESKTOP_LINUX,
             xray_binary_found=True,
             xray_binary_path="/usr/bin/xray",
@@ -228,7 +228,7 @@ class TestRenderDoctorReport:
 
     def test_grpc_unreachable_shows_hint(self, console_mock) -> None:
         report = DoctorReport(
-            bimarz_version="0.2.0",
+            bimarz_version="0.2.2",
             environment=Environment.DESKTOP_LINUX,
             xray_binary_found=True,
             xray_binary_path="/usr/bin/xray",
@@ -245,7 +245,7 @@ class TestRenderDoctorReport:
 
     def test_grpc_listening_shows_build_hint(self, console_mock) -> None:
         report = DoctorReport(
-            bimarz_version="0.2.0",
+            bimarz_version="0.2.2",
             environment=Environment.DESKTOP_LINUX,
             xray_binary_found=True,
             xray_binary_path="/usr/bin/xray",
@@ -262,7 +262,7 @@ class TestRenderDoctorReport:
 
     def test_grpc_responding_shows_success(self, console_mock) -> None:
         report = DoctorReport(
-            bimarz_version="0.2.0",
+            bimarz_version="0.2.2",
             environment=Environment.DESKTOP_LINUX,
             xray_binary_found=True,
             xray_binary_path="/usr/bin/xray",
@@ -279,7 +279,7 @@ class TestRenderDoctorReport:
 
     def test_shows_profile_count(self, console_mock) -> None:
         report = DoctorReport(
-            bimarz_version="0.2.0",
+            bimarz_version="0.2.2",
             environment=Environment.DESKTOP_LINUX,
             xray_binary_found=True,
             xray_binary_path="/usr/bin/xray",
@@ -295,7 +295,7 @@ class TestRenderDoctorReport:
 
     def test_shows_killswitch_active(self, console_mock) -> None:
         report = DoctorReport(
-            bimarz_version="0.2.0",
+            bimarz_version="0.2.2",
             environment=Environment.DESKTOP_LINUX,
             xray_binary_found=True,
             xray_binary_path="/usr/bin/xray",
@@ -311,7 +311,7 @@ class TestRenderDoctorReport:
 
     def test_shows_killswitch_inactive(self, console_mock) -> None:
         report = DoctorReport(
-            bimarz_version="0.2.0",
+            bimarz_version="0.2.2",
             environment=Environment.DESKTOP_LINUX,
             xray_binary_found=True,
             xray_binary_path="/usr/bin/xray",

@@ -1,3 +1,12 @@
+# Release workflow for BiMarz.
+# گردش‌کار انتشار برای بی‌مرز.
+#
+# Pipeline gates / گیت‌های پایپ‌لاین:
+#   1. verify-tag  — the git tag must equal the pyproject.toml version.
+#   2. build       — same proto pin, toolchain and quality gates as CI.
+#   3. validate    — every wheel is inspected; x86_64 wheels are also
+#                    installed and executed in isolated environments.
+#   4. release     — publish only after all gates pass.
 name: Release
 
 on:
@@ -5,24 +14,25 @@ on:
     tags:
       - "v*"
 
+# Least-privilege default; only the release job escalates to contents: write.
+# پیش‌فرض حداقل سطح دسترسی؛ فقط job مربوط به release به contents: write ارتقا می‌یابد.
 permissions:
   contents: read
 
+env:
+  # Same pinned toolchain as .github/workflows/ci.yml — local builds, CI and
+  # releases must share one engineering assumption set.
+  # همان toolchain پین‌شده‌ی گردش‌کار CI — build محلی، CI و انتشار باید یک
+  # مجموعه فرضیات مهندسی مشترک داشته باشند.
+  RUST_TOOLCHAIN: "1.97.1"
+  PROTOBUF_PACKAGE: protobuf-compiler
+  MATURIN_CONSTRAINT: "maturin>=1.8,<2.0"
+
 jobs:
-  build:
-    name: Build wheels (${{ matrix.target }})
+  verify-tag:
+    name: Verify tag matches package version
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        target:
-          - x86_64
-          - aarch64
-
-    defaults:
-      run:
-        working-directory: engine-core
-
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
 
@@ -31,49 +41,87 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install stable Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Check tag == pyproject version
+        run: |
+          set -euo pipefail
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION="$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")"
+          echo "tag: ${TAG_VERSION} — pyproject: ${PKG_VERSION}"
+          if [ "${TAG_VERSION}" != "${PKG_VERSION}" ]; then
+            echo "::error::Tag '${GITHUB_REF_NAME}' does not match pyproject.toml version '${PKG_VERSION}'."
+            echo "::error::Releases are only published when tag == package version (v<version>)."
+            exit 1
+          fi
+
+  build:
+    name: Build wheels (${{ matrix.target }}, py${{ matrix.python-version }})
+    needs: verify-tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64
+          - aarch64
+        # The package declares Python 3.10–3.13 support, so the release
+        # builds one wheel per supported interpreter (no abi3 assumption is
+        # made without verification).
+        # پکیج پشتیبانی از پایتون ۳.۱۰ تا ۳.۱۳ را اعلام می‌کند، پس برای هر
+        # مفسر پشتیبانی‌شده یک wheel جدا ساخته می‌شود (بدون فرض abi3 که
+        # بدون راستی‌آزمایی ادعا نشده).
+        python-version:
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
           targets: ${{ matrix.target }}-unknown-linux-gnu
+          components: clippy
 
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
 
-      - name: Upgrade pip
-        run: python -m pip install --upgrade pip
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ env.PROTOBUF_PACKAGE }}
 
       - name: Install maturin
-        run: pip install "maturin>=1.8,<2"
-
-      - name: Fetch official xray-core proto files
-        shell: bash
         run: |
-          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install "${{ env.MATURIN_CONSTRAINT }}"
 
-          XRAY_TAG="v1.8.24"
+      - name: Fetch pinned xray-core proto files
+        shell: bash
+        run: ./scripts/fetch-protos.sh
 
-          git clone \
-            --depth 1 \
-            --branch "$XRAY_TAG" \
-            https://github.com/XTLS/xray-core.git \
-            /tmp/xray-core-src
-
-          mkdir -p proto
-
-          cp -r /tmp/xray-core-src/app proto/
-          cp -r /tmp/xray-core-src/common proto/
-
-          rm -rf /tmp/xray-core-src
+      - name: Clippy quality gate
+        working-directory: engine-core
+        run: cargo clippy --all-targets -- -D warnings
 
       - name: Install cross compilation tools
         if: matrix.target == 'aarch64'
         run: |
-          sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
           rustup target add aarch64-unknown-linux-gnu
 
       - name: Build native wheel
         if: matrix.target == 'x86_64'
+        working-directory: engine-core
         run: |
           maturin build \
             --release \
@@ -81,6 +129,7 @@ jobs:
 
       - name: Build cross wheel
         if: matrix.target == 'aarch64'
+        working-directory: engine-core
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
         run: |
@@ -91,12 +140,118 @@ jobs:
       - name: Upload wheel artifact
         uses: actions/upload-artifact@v4
         with:
-          name: wheel-${{ matrix.target }}
+          name: wheel-${{ matrix.target }}-py${{ matrix.python-version }}
           path: engine-core/target/wheels/*.whl
+
+  validate:
+    name: Validate release artifacts
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+
+    steps:
+      - name: Download wheels
+        uses: actions/download-artifact@v4
+        with:
+          path: wheels
+          pattern: wheel-*
+          merge-multiple: true
+
+      - name: Static inspection of every wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          shopt -s nullglob
+          wheels=(wheels/*.whl)
+          if [ ${#wheels[@]} -eq 0 ]; then
+            echo "::error::No wheel artifacts were produced."
+            exit 1
+          fi
+          for wheel in "${wheels[@]}"; do
+            echo "=== $(basename "$wheel")"
+
+            # Filename shape: {name}-{version}-{python tag}-{abi tag}-{platform tag}.whl
+            # قالب نام فایل wheel بررسی می‌شود.
+            base="$(basename "$wheel")"
+            parts="${base//-/$'\n'}"
+            count="$(printf '%s\n' "$parts" | wc -l)"
+            if [ "$count" -lt 5 ]; then
+              echo "::error::Invalid wheel filename: $base"
+              exit 1
+            fi
+            wheel_version="$(printf '%s\n' "$parts" | sed -n '2p')"
+            if [ "$wheel_version" != "$TAG_VERSION" ]; then
+              echo "::error::Wheel version $wheel_version does not match tag $TAG_VERSION"
+              exit 1
+            fi
+
+            # Native module presence + ELF architecture.
+            # وجود ماژول نیتیو و معماری ELF بررسی می‌شود.
+            so_path="$(unzip -Z1 "$wheel" | grep -E '\.so$' | head -n 1 || true)"
+            if [ -z "$so_path" ]; then
+              echo "::error::$base contains no native .so module"
+              exit 1
+            fi
+            unzip -p "$wheel" "$so_path" > /tmp/inspect.so
+            machine="$(readelf -h /tmp/inspect.so | grep 'Machine:')"
+            echo "  native module: $so_path —${machine}"
+            case "$base" in
+              *x86_64*) echo "$machine" | grep -qi "x86-64" || { echo "::error::$base ELF arch mismatch"; exit 1; } ;;
+              *aarch64*) echo "$machine" | grep -qi "aarch64" || { echo "::error::$base ELF arch mismatch"; exit 1; } ;;
+            esac
+          done
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Runtime validation of x86_64 wheel (isolated venv)
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          py_nodot="$(echo "${{ matrix.python-version }}" | tr -d '.')"
+
+          shopt -s nullglob
+          matches=(wheels/*-cp${py_nodot}-*x86_64*.whl)
+          if [ ${#matches[@]} -eq 0 ]; then
+            echo "::error::No x86_64 wheel found for cp${py_nodot}."
+            exit 1
+          fi
+
+          python -m venv /tmp/validate-venv
+          /tmp/validate-venv/bin/pip install --quiet "${matches[0]}"
+          /tmp/validate-venv/bin/python -c "import bimarz; print('import ok:', bimarz.__version__)"
+          installed="$(/tmp/validate-venv/bin/bimarz --version | awk '{print $2}')"
+          echo "bimarz --version -> ${installed}"
+          if [ "${installed}" != "${TAG_VERSION}" ]; then
+            echo "::error::Installed version ${installed} != tag ${TAG_VERSION}"
+            exit 1
+          fi
+          /tmp/validate-venv/bin/bimarz doctor || true
+          rm -rf /tmp/validate-venv
+
+      - name: Note aarch64 validation scope
+        shell: bash
+        run: |
+          echo "aarch64 wheels receive full static validation above."
+          echo "Runtime validation for aarch64 must run on an ARM64 host"
+          echo "(e.g. the project NetHunter device) via scripts/build-release.sh."
 
   release:
     name: Create GitHub Release
-    needs: build
+    needs: [verify-tag, build, validate]
     runs-on: ubuntu-latest
 
     permissions:
@@ -110,7 +265,11 @@ jobs:
           merge-multiple: true
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        # Pinned to the immutable commit the v2 tag resolved to when pinned
+        # (supply-chain hardening); update deliberately, never blindly.
+        # به کامیت غیرقابل‌تغییری پین شده که تگ v2 هنگام پین به آن resolve
+        # شد (سخت‌گیری زنجیره تامین)؛ به‌روزرسانی فقط آگاهانه انجام شود.
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: wheels/*.whl
           generate_release_notes: true

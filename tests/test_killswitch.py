@@ -12,11 +12,10 @@ from __future__ import annotations
 import logging
 
 import pytest
+from bimarz import _engine_core
 from bimarz.engine import EngineNotBuiltError
 from bimarz.killswitch_manager import KillSwitchManager
 from bimarz.models import KillSwitchState, KillSwitchWatcherState
-
-from bimarz import _engine_core
 
 
 def test_initial_state_is_inactive() -> None:

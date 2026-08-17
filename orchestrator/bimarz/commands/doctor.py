@@ -65,6 +65,13 @@ def _render_doctor_report(report: DoctorReport) -> None:
     else:
         console.print("[dim]○ Kill-switch is inactive[/dim]")
 
+    # هشدارهای جمع‌شده در سرویس (مثل ناهماهنگی نسخه‌ی proto/باینری) در انتها
+    # چاپ می‌شوند.
+    # Warnings collected by the service (e.g. proto/binary version
+    # mismatch) are printed at the end.
+    for warning in report.warnings:
+        console.print(f"[yellow]warning:[/yellow] {warning}")
+
 
 def _doctor_timeout_seconds(args: argparse.Namespace) -> float:
     # مهلت زمانی probe doctor را برمی‌گرداند: آرگومان CLI > متغیر محیطی > مقدار پیش‌فرض

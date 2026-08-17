@@ -11,6 +11,7 @@ from bimarz.config import AppConfig
 from bimarz.constants import BIMARZ_VERSION
 from bimarz.engine import (
     EngineNotBuiltError,
+    get_xray_proto_version,
     probe_grpc_with_engine,
 )
 from bimarz.killswitch_manager import KillSwitchManager
@@ -26,6 +27,25 @@ from bimarz.xray_manager import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_xray_version(version: str | None) -> str | None:
+    """Extract a comparable version token from an xray version string.
+
+    Handles both the binary banner ("Xray 1.8.24 (Xray, ...)") and the
+    proto pin tag ("v1.8.24").
+
+    یک توکن نسخه‌ی قابل‌مقایسه از رشته‌ی نسخه‌ی xray استخراج می‌کند. هم
+    بنر باینری ("Xray 1.8.24 (Xray, ...)") و هم تگ پین proto ("v1.8.24")
+    پشتیبانی می‌شوند.
+    """
+    if not version:
+        return None
+    for token in version.split():
+        cleaned = token.strip().lstrip("vV")
+        if cleaned and cleaned[0].isdigit():
+            return cleaned
+    return None
 
 
 class DoctorService:
@@ -61,6 +81,22 @@ class DoctorService:
                 report.xray_version = None
         except BinaryNotFoundError:
             report.xray_binary_found = False
+
+        # اگر باینری xray با نسخه‌ی protoای که اکستنشن Rust با آن ساخته شده
+        # هماهنگ نباشد، صریحاً هشدار می‌دهیم — ترکیب ناسازگار هرگز نباید
+        # بی‌صدا رد شود.
+        # Warn explicitly when the xray binary does not match the proto
+        # version the Rust extension was built against — an incompatible
+        # combination must never pass silently.
+        proto_tag = get_xray_proto_version()
+        binary_version = _normalize_xray_version(report.xray_version)
+        proto_version = _normalize_xray_version(proto_tag)
+        if binary_version and proto_version and binary_version != proto_version:
+            report.warnings.append(
+                f"xray binary version ({report.xray_version}) does not match the proto "
+                f"bindings built into the extension ({proto_tag}); rebuild after aligning "
+                f"engine-core/xray-proto-pin.env or use the matching xray-core release."
+            )
 
         store = ProfileStore()
         report.profiles_count = len(store.list_profiles())

@@ -162,6 +162,17 @@ fn remove_killswitch_rules(interface: String, xray_uid: Option<u32>) -> PyResult
     killswitch::remove_ruleset(&ruleset, &executor).map_err(PyRuntimeError::new_err)
 }
 
+// نسخه‌ی پین‌شده‌ی proto مربوط به Xray-core که این اکستنشن با آن ساخته شده
+// (توسط build.rs از xray-proto-pin.env تزریق می‌شود). doctor از آن برای
+// هشدار ناهماهنگی proto/باینری استفاده می‌کند.
+// The pinned Xray-core proto version this extension was built against
+// (injected by build.rs from xray-proto-pin.env). doctor uses it to warn
+// about proto/binary mismatches.
+#[pyfunction]
+fn xray_proto_version() -> String {
+    env!("BIMARZ_XRAY_PROTO_TAG").to_string()
+}
+
 #[pyfunction]
 fn build_dns_guard_config_json() -> String {
     let config = dns_guard::DnsGuardConfig::default();
@@ -181,6 +192,7 @@ fn _engine_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(probe_kernel_killswitch_capability, m)?)?;
     m.add_function(wrap_pyfunction!(apply_killswitch_rules, m)?)?;
     m.add_function(wrap_pyfunction!(remove_killswitch_rules, m)?)?;
+    m.add_function(wrap_pyfunction!(xray_proto_version, m)?)?;
     m.add_function(wrap_pyfunction!(build_dns_guard_config_json, m)?)?;
     m.add_function(wrap_pyfunction!(build_dns_routing_rule_json, m)?)?;
     Ok(())

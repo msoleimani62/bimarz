@@ -76,7 +76,8 @@ def outbound_kwargs(profile: ServerProfile) -> dict[str, Any]:
 
 
 def profiles_by_id(profiles: list[ServerProfile]) -> dict[str, ServerProfile]:
-    """Index profiles by profile_id."""
-    # برای بازیابی سریع پروفایل‌ها، یک جدول جستجوی مستقیم می‌سازد.
-    # Build a direct lookup table for efficient profile retrieval.
+    """ایجاد جدول جستجوی مستقیم برای پروفایل‌ها.
+
+    Build a direct lookup table for efficient profile retrieval.
+    """
     return {profile.profile_id: profile for profile in profiles}
