@@ -239,7 +239,7 @@ jobs:
             echo "::error::Installed version ${installed} != tag ${TAG_VERSION}"
             exit 1
           fi
-          /tmp/validate-venv/bin/bimarz doctor || true
+          /tmp/validate-venv/bin/bimarz doctor
           rm -rf /tmp/validate-venv
 
       - name: Note aarch64 validation scope
