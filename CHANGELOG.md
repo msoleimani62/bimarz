@@ -3,6 +3,28 @@
 فرمت این فایل بر اساس [Keep a Changelog](https://keepachangelog.com/) است.
 This file follows the [Keep a Changelog](https://keepachangelog.com/) format.
 
+## [0.2.3] — 2026-08-18
+
+### Added — افزوده شد
+
+- **کریت جدید `mobile-core`:** لایه‌ی بایندینگ uniffi-rs که همان منطق تست‌شده‌ی `engine-core` (اتصال gRPC به xray-core، ساخت outbound از VLESS+Reality، health-check، کانفیگ DNS-guard) را — بدون هیچ کد تکراری — برای کاتلین/اندروید صادر می‌کند.
+- New `mobile-core` crate: a uniffi-rs binding layer exporting the same tested `engine-core` logic (gRPC connection to xray-core, VLESS+Reality outbound building, health checks, DNS-guard config) — no duplicated logic — to Kotlin/Android.
+- **اسکلت اولیه‌ی اپلیکیشن اندروید** (`android/`): پروژه‌ی Gradle مستقل با Jetpack Compose، `BimarzVpnService` (رابط TUN + اجرای xray-core + پل hev-socks5-tunnel)، مدیریت پروفایل با `EncryptedSharedPreferences`، و پارسر لینک `vless://`. هنوز روی دستگاه واقعی build/test نشده — نیاز به چرخه‌ی تصحیح روی دستگاه دارد (`android/README.md`).
+- **Initial Android app scaffold** (`android/`): a standalone Gradle project with Jetpack Compose, `BimarzVpnService` (TUN interface + xray-core process + hev-socks5-tunnel bridge), Keystore-backed profile storage, and a `vless://` link parser. Not yet built/tested on a real device — needs an on-device fix loop (`android/README.md`).
+- `scripts/build-android.sh`: cross-compiles `mobile-core` for all four Android ABIs via cargo-ndk and generates the Kotlin bindings via uniffi-bindgen.
+
+### Changed — تغییر یافت
+
+- `engine-core`: ماژول‌های `dns_guard`, `errors`, `grpc_client`, `healthcheck` از `mod` به `pub mod` تغییر کردند تا `mobile-core` بتواند آن‌ها را دوباره استفاده کند (بدون هیچ کپی/بازنویسی). `killswitch` عمداً private ماند (فقط روی iptables/لینوکس معنا دارد).
+- `engine-core`: the `dns_guard`, `errors`, `grpc_client`, `healthcheck` modules changed from `mod` to `pub mod` so `mobile-core` can reuse them (no copy/rewrite). `killswitch` stays private on purpose (only meaningful on iptables/Linux).
+- `engine-core`: وابستگی `pyo3`/`pyo3-async-runtimes` اختیاری شد (پشت feature `python`، پیش‌فرض روشن) تا `mobile-core` بتواند بدون هیچ پایتونی برای اندروید cross-compile شود. رفتار `maturin develop` دسکتاپ بدون تغییر باقی می‌ماند.
+- `engine-core`: `pyo3`/`pyo3-async-runtimes` are now optional (behind the `python` feature, on by default) so `mobile-core` can cross-compile for Android without any Python involved. Desktop `maturin develop` behaviour is unchanged.
+
+### Fixed — اصلاح شد
+
+- **`bandit` security scan:** بخش `[tool.bandit]` که در نسخه‌ی قبل حذف شده بود دوباره اضافه شد — این بار هم `.venv/` و هم `tests/` را exclude می‌کند (۳۷۲ از ۳۸۵ finding قبلی فقط `B101: assert` در فایل‌های تست بودند، رفتار عادی pytest، نه یک ریسک واقعی)، به‌علاوه `skip = ["B105"]` برای false-positive نام یک متغیر محیطی در `profiles.py`.
+- **`bandit` security scan:** the `[tool.bandit]` section that had gone missing in the previous version was re-added — this time excluding both `.venv/` and `tests/` (372 of the previous 385 findings were just `B101: assert` in test files, normal pytest behaviour, not a real risk), plus `skip = ["B105"]` for a false-positive environment-variable name in `profiles.py`.
+
 ## [0.2.2] — 2026-08-17
 
 ### Added — افزوده شد

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  آیکون موقت وکتوری — یک نماد قفل ساده. برای انتشار واقعی باید با یک
+  آیکون طراحی‌شده‌ی مناسب (svg/png export از Android Studio's Image
+  Asset Studio) جایگزین شود.
+
+  Placeholder vector icon — a simple lock glyph. Must be replaced with a
+  properly designed icon (svg/png exported via Android Studio's Image
+  Asset Studio) before a real release.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,24 C44,24 36,32 36,42 L36,50 L32,50 C29,50 27,52 27,55 L27,80 C27,83 29,85 32,85 L76,85 C79,85 81,83 81,80 L81,55 C81,52 79,50 76,50 L72,50 L72,42 C72,32 64,24 54,24 Z M54,32 C60,32 64,36 64,42 L64,50 L44,50 L44,42 C44,36 48,32 54,32 Z" />
+</vector>

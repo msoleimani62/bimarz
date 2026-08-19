@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- برای نمایش نوتیفیکیشن دائمی «متصل» روی اندروید ۱۳ به بالا لازم است. -->
+    <!-- Needed to show the persistent "connected" notification on Android 13+. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application
+        android:name=".BimarzApplication"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.Bimarz"
+        android:usesCleartextTraffic="false">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.Bimarz">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+          سرویس اصلی VPN. android:permission اجباری است — سیستم فقط به
+          خودِ فریم‌ورک اجازه می‌دهد این سرویس را bind کند، هیچ اپ دیگری
+          نمی‌تواند. android:exported باید true باشد وگرنه سیستم نمی‌تواند
+          آن را صدا بزند.
+
+          The main VPN service. android:permission is mandatory — only the
+          system framework is allowed to bind this service, no other app
+          can. android:exported must be true or the system can't invoke it.
+        -->
+        <service
+            android:name=".vpn.BimarzVpnService"
+            android:exported="true"
+            android:foregroundServiceType="specialUse"
+            android:permission="android.permission.BIND_VPN_SERVICE">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+        </service>
+
+    </application>
+
+</manifest>

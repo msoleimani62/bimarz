@@ -1,6 +1,6 @@
 [package]
 name = "engine-core"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 rust-version = "1.83"
 description = "Rust engine adapter for xray-core with gRPC control, health checks, kill switch, and DNS leak protection"
@@ -27,13 +27,22 @@ crate-type = [
     "rlib",
 ]
 
+# وابستگی pyo3/pyo3-async-runtimes اختیاری شده (پشت feature "python"، که
+# به‌طور پیش‌فرض روشن است) تا کریت mobile-core بتواند این کریت را بدون
+# هیچ پایتونی، برای اندروید cross-compile کند. رفتار دسکتاپ
+# (`maturin develop`, بدون هیچ فلگ اضافه) دقیقاً مثل قبل باقی می‌ماند.
+#
+# pyo3/pyo3-async-runtimes are now optional (behind the "python" feature,
+# on by default) so the mobile-core crate can cross-compile this crate for
+# Android with no Python involved at all. Desktop behaviour
+# (`maturin develop`, no extra flags) stays exactly the same as before.
 [dependencies]
 anyhow = "1.0"
 base64 = "0.22"
 hex = "0.4"
 prost = "0.13"
-pyo3 = { version = "0.29.2", features = ["extension-module"] }
-pyo3-async-runtimes = { version = "0.29.0", features = ["tokio-runtime"] }
+pyo3 = { version = "0.29.2", features = ["extension-module"], optional = true }
+pyo3-async-runtimes = { version = "0.29.0", features = ["tokio-runtime"], optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "1.0"
@@ -41,6 +50,10 @@ tokio = { version = "1.38", features = ["full"] }
 tonic = "0.12"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[features]
+default = ["python"]
+python = ["dep:pyo3", "dep:pyo3-async-runtimes"]
 
 [build-dependencies]
 tonic-build = "0.12"

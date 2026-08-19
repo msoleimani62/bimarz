@@ -1,0 +1,61 @@
+# کریت جدید: لایه‌ی بایندینگ uniffi که همان engine-core را (بدون پایتون،
+# بدون pyo3) به کاتلین/اندروید صادر می‌کند. کریت‌types دوگانه:
+# "cdylib" همان .so ای است که cargo-ndk برای هر ABI اندروید می‌سازد؛
+# "staticlib" فقط برای هدف "uniffi-bindgen" (تولید فایل‌های کاتلین روی
+# دستگاه build، نه روی اندروید) لازم است.
+#
+# New crate: the uniffi binding layer that exports the same engine-core
+# (with no Python, no pyo3 involved) to Kotlin/Android. Dual crate-type:
+# "cdylib" is the .so cargo-ndk builds for each Android ABI; "staticlib"
+# is only needed for the "uniffi-bindgen" target (generating the Kotlin
+# binding files on the build machine, not on Android).
+[package]
+name = "mobile-core"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.83"
+description = "uniffi bindings exposing engine-core's xray-core control logic to Kotlin/Android"
+license = "MIT"
+publish = false
+
+[lib]
+name = "mobile_core"
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+# پایتون اینجا اصلاً درگیر نیست — "python" فیچر پیش‌فرض engine-core را
+# خاموش می‌کنیم تا هیچ‌وقت سعی نکند مفسر پایتون را برای هدف NDK پیدا کند.
+# Python is not involved here at all — engine-core's default "python"
+# feature is turned off so it never tries to locate a Python interpreter
+# for the NDK target.
+engine-core = { path = "../engine-core", default-features = false }
+thiserror = "1.0"
+tokio = { version = "1.38", features = ["rt-multi-thread", "sync"] }
+# فیچر "tokio" لازم است چون در src/lib.rs از
+# #[uniffi::export(async_runtime = "tokio")] استفاده شده — بدون آن ماکرو
+# نمی‌تواند async_compat را که برای پل‌زدن بین تسک‌های tokio و مدل
+# async خودِ uniffi لازم است پیدا کند.
+#
+# The "tokio" feature is required because src/lib.rs uses
+# #[uniffi::export(async_runtime = "tokio")] — without it the macro can't
+# find async_compat, which is needed to bridge tokio tasks with uniffi's
+# own async model.
+uniffi = { version = "0.28", features = ["tokio"] }
+
+[build-dependencies]
+uniffi = { version = "0.28", features = ["build"] }
+
+# باینری کوچک uniffi-bindgen — فقط روی دستگاه توسعه اجرا می‌شود (نه روی
+# اندروید) تا از این کریت کامپایل‌شده، فایل‌های bindings کاتلین را تولید
+# کند. پشت فیچر "uniffi/cli" است طبق الگوی رسمی uniffi.
+#
+# Small uniffi-bindgen binary — runs only on the development machine (not
+# on Android) to generate the Kotlin binding files from this compiled
+# crate. Gated behind the "uniffi/cli" feature, per uniffi's own pattern.
+[[bin]]
+name = "uniffi-bindgen"
+path = "uniffi-bindgen.rs"
+required-features = ["uniffi/cli"]
+
+[features]
+cli = ["uniffi/cli"]

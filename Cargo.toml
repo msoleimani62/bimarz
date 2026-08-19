@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["engine-core"]
+members = ["engine-core", "mobile-core"]
 
 # Shared release profile for all workspace crates.
 # پروفایل انتشار مشترک برای تمام کریت‌های workspace.

@@ -128,6 +128,7 @@ bimarz/
 | ۶ | ✅ کامل | CI/CD، security audit، quality gates و docs/INSTALL.md |
 | ۷ | ✅ کامل | Subscription URL parsing، base64 decoding و auto-update profiles |
 | ۸ | ✅ کامل | Connection lifecycle hardening، transactional rollback، cleanup observability و acceptance validation |
+| ۹ | 🚧 شروع شده | اپلیکیشن اندروید (Kotlin + Jetpack Compose + uniffi-rs). فقط اسکلت اولیه — هنوز روی هیچ دستگاه واقعی build/test نشده. جزئیات: [`android/README.md`](android/README.md) |
 
 > **نکته:** وضعیت roadmap باید با implementation واقعی repository هماهنگ بماند. برنامه‌های آینده نباید به‌عنوان قابلیت فعلی مستند شوند.
 
@@ -428,7 +429,7 @@ README باید هنگام تغییر این منابع بررسی و در صو�
 نسخه پروژه باید از metadata رسمی repository پیروی کند.
 
 ```text
-BiMarz 0.2.2
+BiMarz 0.2.3
 ```
 
 این مقدار باید هنگام release با version واقعی package و engine تطبیق داده شود.
@@ -620,6 +621,7 @@ The structure above is a high-level repository overview. The actual repository a
 | 6 | ✅ Complete | CI/CD, security audit, quality gates and docs/INSTALL.md |
 | 7 | ✅ Complete | Subscription URL parsing, base64 decoding and auto-update profiles |
 | 8 | ✅ Complete | Connection lifecycle hardening, transactional rollback, cleanup observability and acceptance validation |
+| 9 | 🚧 Started | Android app (Kotlin + Jetpack Compose + uniffi-rs). Initial scaffold only — not yet built/tested on a real device. Details: [`android/README.md`](android/README.md) |
 
 > Roadmap entries must reflect verified implementation status. Planned functionality must not be documented as currently available.
 
@@ -871,7 +873,7 @@ The README should be reviewed whenever these sources change.
 The project version must follow the repository metadata and its defined source of truth.
 
 ```text
-BiMarz 0.2.2
+BiMarz 0.2.3
 ```
 
 This value must be verified against the actual package and engine versions when preparing a release.

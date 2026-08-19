@@ -10,7 +10,7 @@ build-backend = "maturin"
 
 [project]
 name = "bimarz"
-version = "0.2.2"
+version = "0.2.3"
 description = "Cross-platform Xray-core orchestrator with VLESS, Reality, Vision, health checks, failover, kill switch, and DNS leak protection"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -124,6 +124,24 @@ exclude_lines = [
     "@(abc\\.)?abstractmethod",
     "if TYPE_CHECKING:",
 ]
+
+# اسکن bandit را به سورس واقعی پروژه محدود می‌کند: هم وابستگی‌های شخص ثالث
+# در .venv (که یافته‌های کاذب بی‌شمار تولید می‌کردند) و هم پوشه‌ی tests/ را
+# کنار می‌گذارد، چون B101 روی هر «assert» در فایل‌های تست فعال می‌شود —
+# رفتار عادی و مورد انتظار pytest، نه یک ریسک امنیتی واقعی.
+# B105 هم globally skip شده چون تنها موردش در سورس واقعی پروژه
+# (profiles.py) نام یک متغیر محیطی است، نه یک رمز عبور هاردکدشده.
+#
+# Restricts the bandit scan to the project's own source: excludes both
+# third-party dependencies under .venv (which produced countless false
+# positives) and the tests/ directory, since B101 fires on every `assert`
+# in test files — normal, expected pytest behaviour, not a real security
+# risk. B105 is skipped globally too, since its only hit in the project's
+# real source (profiles.py) is the *name* of an environment variable, not
+# an actual hardcoded password.
+[tool.bandit]
+exclude_dirs = [".venv", "venv", "target", ".git", "__pycache__", ".mypy_cache", ".ruff_cache", ".pytest_cache", "tests"]
+skips = ["B105"]
 
 [tool.ruff]
 target-version = "py310"

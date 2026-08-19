@@ -83,9 +83,9 @@ fn read_pin(pin_path: &Path) -> Result<(String, String), Box<dyn std::error::Err
         }
     }
 
-    let tag = tag.filter(|t| !t.is_empty()).ok_or_else(|| {
-        format!("XRAY_PROTO_TAG missing or empty in {}", pin_path.display())
-    })?;
+    let tag = tag
+        .filter(|t| !t.is_empty())
+        .ok_or_else(|| format!("XRAY_PROTO_TAG missing or empty in {}", pin_path.display()))?;
     Ok((tag, commit.unwrap_or_default()))
 }
 
@@ -137,11 +137,11 @@ fn safe_ident(segment: &str) -> String {
     // به ۲۰۲۴). گنجاندن کلیدواژه‌هایی که هنوز strict نشده‌اند بی‌ضرر است:
     // `r#` روی یک شناسه‌ی عادی هم Rust معتبر است.
     const KEYWORDS: &[&str] = &[
-        "as", "async", "await", "become", "box", "break", "const", "continue", "do", "dyn",
-        "else", "enum", "extern", "false", "final", "fn", "for", "gen", "if", "impl", "in",
-        "let", "loop", "macro", "match", "mod", "move", "mut", "override", "priv", "pub",
-        "ref", "return", "static", "struct", "trait", "true", "try", "type", "typeof",
-        "unsafe", "unsized", "use", "virtual", "where", "while", "yield",
+        "as", "async", "await", "become", "box", "break", "const", "continue", "do", "dyn", "else",
+        "enum", "extern", "false", "final", "fn", "for", "gen", "if", "impl", "in", "let", "loop",
+        "macro", "match", "mod", "move", "mut", "override", "priv", "pub", "ref", "return",
+        "static", "struct", "trait", "true", "try", "type", "typeof", "unsafe", "unsized", "use",
+        "virtual", "where", "while", "yield",
     ];
 
     let mut ident = String::with_capacity(segment.len() + 2);

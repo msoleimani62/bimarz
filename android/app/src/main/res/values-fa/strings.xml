@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">بی‌مرز</string>
+    <string name="connect">اتصال</string>
+    <string name="disconnect">قطع اتصال</string>
+    <string name="status_disconnected">قطع</string>
+    <string name="status_connecting">در حال اتصال…</string>
+    <string name="status_connected">متصل</string>
+    <string name="status_disconnecting">در حال قطع اتصال…</string>
+    <string name="notification_channel_name">اتصال VPN</string>
+    <string name="notification_connected_title">بی‌مرز متصل است</string>
+    <string name="notification_connected_text">برای باز کردن برنامه ضربه بزنید</string>
+    <string name="profiles_title">پروفایل‌ها</string>
+    <string name="add_profile">افزودن پروفایل</string>
+    <string name="no_profiles">هنوز پروفایلی نیست. برای شروع یکی اضافه کنید.</string>
+    <string name="vless_link_hint">یک لینک vless:// جای‌گذاری کنید</string>
+</resources>

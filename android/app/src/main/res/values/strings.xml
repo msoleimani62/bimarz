@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BiMarz</string>
+    <string name="connect">Connect</string>
+    <string name="disconnect">Disconnect</string>
+    <string name="status_disconnected">Disconnected</string>
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_connected">Connected</string>
+    <string name="status_disconnecting">Disconnecting…</string>
+    <string name="notification_channel_name">VPN connection</string>
+    <string name="notification_connected_title">BiMarz is connected</string>
+    <string name="notification_connected_text">Tap to open the app</string>
+    <string name="profiles_title">Profiles</string>
+    <string name="add_profile">Add profile</string>
+    <string name="no_profiles">No profiles yet. Add one to get started.</string>
+    <string name="vless_link_hint">Paste a vless:// link</string>
+</resources>

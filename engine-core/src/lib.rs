@@ -5,12 +5,26 @@
 //! exposed as an importable Python module (`engine_core`).
 
 #![allow(clippy::useless_conversion)]
-mod dns_guard;
-mod errors;
-mod grpc_client;
-mod healthcheck;
+
+// این چهار ماژول از نسخه‌ی ۰.۲.۳ به بعد pub شده‌اند تا کریت جدید
+// `mobile-core` (بایندینگ uniffi برای اندروید/کاتلین) بتواند دقیقاً همین
+// منطق تست‌شده را دوباره استفاده کند، بدون کپی یا بازنویسی. `killswitch`
+// عمداً private می‌ماند چون فقط روی iptables (لینوکس) معنا دارد — روی
+// اندروید VPN kill-switch از طریق خودِ VpnService (تنظیم
+// "block connections without VPN") انجام می‌شود.
+//
+// As of 0.2.3, these four modules are pub so the new `mobile-core` crate
+// (the uniffi binding layer for Android/Kotlin) can reuse this exact,
+// already-tested logic instead of copying or reimplementing it.
+// `killswitch` stays private on purpose — it is meaningful only on
+// iptables (Linux); on Android the VPN kill switch is handled by
+// VpnService itself ("block connections without VPN").
+pub mod dns_guard;
+pub mod errors;
+pub mod grpc_client;
+pub mod healthcheck;
 mod killswitch;
-mod vless_builder;
+pub mod vless_builder;
 
 mod pb {
     #![allow(dead_code)]
@@ -19,12 +33,34 @@ mod pb {
     include!(concat!(env!("OUT_DIR"), "/pb_tree.rs"));
 }
 
+// از این‌جا تا انتهای فایل، همه‌چیز مخصوص بایندینگ پایتون (pyo3) است و
+// پشت feature اختیاری «python» قرار گرفته (پیش‌فرض روشن، پس رفتار
+// `maturin develop`/دسکتاپ بدون هیچ تغییری دقیقاً مثل قبل کار می‌کند).
+// دلیل: کریت جدید `mobile-core` (اندروید) به همین کریت engine-core به‌عنوان
+// یک کتابخانه‌ی معمولی Rust وابسته است، بدون هیچ پایتونی؛ اگر pyo3
+// همیشه اجباری می‌بود، cross-compile کردن برای اندروید تلاش می‌کرد یک
+// مفسر پایتون برای هدف NDK پیدا کند که اصلاً وجود ندارد.
+//
+// From here to the end of the file, everything is specific to the Python
+// binding (pyo3) and sits behind an optional "python" feature (on by
+// default, so desktop `maturin develop` behaves exactly as before with no
+// change at all). Reason: the new `mobile-core` crate (Android) depends on
+// this same engine-core crate as a plain Rust library, with no Python
+// involved at all; if pyo3 were always mandatory, cross-compiling for
+// Android would try to locate a Python interpreter for the NDK target
+// that simply does not exist.
+#[cfg(feature = "python")]
 use errors::EngineError;
+#[cfg(feature = "python")]
 use grpc_client::EngineClient;
+#[cfg(feature = "python")]
 use pyo3::exceptions::{PyConnectionError, PyRuntimeError};
+#[cfg(feature = "python")]
 use pyo3::prelude::*;
+#[cfg(feature = "python")]
 use pyo3::wrap_pyfunction;
 
+#[cfg(feature = "python")]
 impl From<EngineError> for PyErr {
     fn from(err: EngineError) -> PyErr {
         match err {
@@ -34,11 +70,13 @@ impl From<EngineError> for PyErr {
     }
 }
 
+#[cfg(feature = "python")]
 #[pyclass]
 struct PyEngineClient {
     inner: EngineClient,
 }
 
+#[cfg(feature = "python")]
 #[pymethods]
 impl PyEngineClient {
     #[staticmethod]
@@ -103,6 +141,7 @@ impl PyEngineClient {
     }
 }
 
+#[cfg(feature = "python")]
 #[pyfunction]
 fn check_server_health(
     py: Python<'_>,
@@ -116,6 +155,7 @@ fn check_server_health(
     })
 }
 
+#[cfg(feature = "python")]
 #[pyfunction]
 fn check_servers_health(
     py: Python<'_>,
@@ -139,11 +179,13 @@ fn check_servers_health(
     })
 }
 
+#[cfg(feature = "python")]
 #[pyfunction]
 fn probe_kernel_killswitch_capability() -> bool {
     killswitch::probe_kernel_capability()
 }
 
+#[cfg(feature = "python")]
 #[pyfunction]
 #[pyo3(signature = (interface, xray_uid=None))]
 fn apply_killswitch_rules(interface: String, xray_uid: Option<u32>) -> PyResult<()> {
@@ -153,6 +195,7 @@ fn apply_killswitch_rules(interface: String, xray_uid: Option<u32>) -> PyResult<
     killswitch::apply_ruleset(&ruleset, &executor).map_err(PyRuntimeError::new_err)
 }
 
+#[cfg(feature = "python")]
 #[pyfunction]
 #[pyo3(signature = (interface, xray_uid=None))]
 fn remove_killswitch_rules(interface: String, xray_uid: Option<u32>) -> PyResult<()> {
@@ -165,25 +208,44 @@ fn remove_killswitch_rules(interface: String, xray_uid: Option<u32>) -> PyResult
 // نسخه‌ی پین‌شده‌ی proto مربوط به Xray-core که این اکستنشن با آن ساخته شده
 // (توسط build.rs از xray-proto-pin.env تزریق می‌شود). doctor از آن برای
 // هشدار ناهماهنگی proto/باینری استفاده می‌کند.
+//
+// تابع خالص pub جدا شده تا کریت `mobile-core` (بایندینگ uniffi برای
+// اندروید) هم بدون تکرار همین `env!` بتواند از همان مقدار استفاده کند —
+// چون `env!` در محل تعریف‌شدنش (همین کریت) resolve می‌شود، نه در کریتی
+// که آن را صدا می‌زند.
+//
 // The pinned Xray-core proto version this extension was built against
 // (injected by build.rs from xray-proto-pin.env). doctor uses it to warn
 // about proto/binary mismatches.
-#[pyfunction]
-fn xray_proto_version() -> String {
-    env!("BIMARZ_XRAY_PROTO_TAG").to_string()
+//
+// Split out as a plain pub function so the `mobile-core` crate (the
+// Android uniffi binding layer) can reuse the same value without
+// duplicating the `env!` call — `env!` resolves where it is written (this
+// crate), not in whichever crate calls the function.
+pub fn xray_proto_version_str() -> &'static str {
+    env!("BIMARZ_XRAY_PROTO_TAG")
 }
 
+#[cfg(feature = "python")]
+#[pyfunction]
+fn xray_proto_version() -> String {
+    xray_proto_version_str().to_string()
+}
+
+#[cfg(feature = "python")]
 #[pyfunction]
 fn build_dns_guard_config_json() -> String {
     let config = dns_guard::DnsGuardConfig::default();
     dns_guard::build_dns_config_json(&config)
 }
 
+#[cfg(feature = "python")]
 #[pyfunction]
 fn build_dns_routing_rule_json() -> String {
     dns_guard::build_dns_routing_rule_json("dns-out")
 }
 
+#[cfg(feature = "python")]
 #[pymodule]
 fn _engine_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyEngineClient>()?;
