@@ -17,8 +17,12 @@ android {
         applicationId = "ir.bimarz.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.1.1"
+
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+        }
     }
 
     buildTypes {
@@ -34,6 +38,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -42,16 +47,6 @@ android {
 
     buildFeatures {
         compose = true
-    }
-
-    // scripts/build-android.sh دقیقاً همین چهار ABI را در
-    // src/main/jniLibs/<abi>/ پر می‌کند (libmobile_core.so + باینری
-    // xray بسته‌بندی‌شده + libhev-socks5-tunnel.so).
-    // scripts/build-android.sh populates exactly these four ABIs under
-    // src/main/jniLibs/<abi>/ (libmobile_core.so + the bundled xray
-    // binary + libhev-socks5-tunnel.so).
-    ndk {
-        abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
     }
 
     packaging {
@@ -70,6 +65,7 @@ android {
 }
 
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.3")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

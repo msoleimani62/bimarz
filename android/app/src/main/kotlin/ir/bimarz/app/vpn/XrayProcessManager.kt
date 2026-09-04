@@ -17,6 +17,24 @@ import java.io.File
  * protocol/crypto is reimplemented here — the exact same "never bypass
  * xray-core" philosophy desktop follows.
  */
+/**
+ * java.lang.Process.pid() روی اندروید اصلا پیاده‌سازی نشده (android.jar
+ * حتی در SDK 35 هم فاقد این متد است) — از فیلد داخلی pid با reflection
+ * می‌خوانیم؛ اگر موفق نشد، -1 برمی‌گرداند (هرگز پرتاب نمی‌کند).
+ *
+ * java.lang.Process.pid() is simply not implemented on Android
+ * (android.jar lacks it even at SDK 35) — read the internal pid field
+ * via reflection instead; returns -1 on any failure, never throws.
+ */
+private fun Process.pidCompat(): Long =
+    try {
+        val field = javaClass.getDeclaredField("pid")
+        field.isAccessible = true
+        field.getLong(this)
+    } catch (e: Exception) {
+        -1L
+    }
+
 class XrayProcessManager(private val context: Context) {
 
     private var process: Process? = null
@@ -32,7 +50,7 @@ class XrayProcessManager(private val context: Context) {
             .directory(context.filesDir)
         val started = builder.start()
         process = started
-        Log.i(TAG, "xray-core started (pid=${started.pid()})")
+        Log.i(TAG, "xray-core started (pid=${started.pidCompat()})")
         return started
     }
 

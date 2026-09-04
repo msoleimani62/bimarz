@@ -11,7 +11,7 @@
 # binding files on the build machine, not on Android).
 [package]
 name = "mobile-core"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 rust-version = "1.83"
 description = "uniffi bindings exposing engine-core's xray-core control logic to Kotlin/Android"

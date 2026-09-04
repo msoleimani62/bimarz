@@ -40,11 +40,11 @@ uniffi::setup_scaffolding!();
 /// strings.
 #[derive(Debug, thiserror::Error, uniffi::Error)]
 pub enum MobileError {
-    #[error("failed to connect to xray-core gRPC endpoint at {endpoint}: {message}")]
-    GrpcConnect { endpoint: String, message: String },
+    #[error("failed to connect to xray-core gRPC endpoint at {endpoint}: {detail}")]
+    GrpcConnect { endpoint: String, detail: String },
 
-    #[error("xray-core gRPC call '{method}' failed: {message}")]
-    GrpcCall { method: String, message: String },
+    #[error("xray-core gRPC call '{method}' failed: {detail}")]
+    GrpcCall { method: String, detail: String },
 
     #[error("invalid outbound configuration: {reason}")]
     InvalidOutboundConfig { reason: String },
@@ -55,8 +55,8 @@ pub enum MobileError {
     #[error("xray-core process is not running (expected pid {pid} to be alive)")]
     ProcessNotRunning { pid: u32 },
 
-    #[error("io error: {message}")]
-    Io { message: String },
+    #[error("io error: {detail}")]
+    Io { detail: String },
 }
 
 impl From<EngineError> for MobileError {
@@ -64,11 +64,11 @@ impl From<EngineError> for MobileError {
         match err {
             EngineError::GrpcConnect { endpoint, source } => MobileError::GrpcConnect {
                 endpoint,
-                message: source.to_string(),
+                detail: source.to_string(),
             },
             EngineError::GrpcCall { method, status } => MobileError::GrpcCall {
                 method: method.to_string(),
-                message: status.to_string(),
+                detail: status.to_string(),
             },
             EngineError::InvalidOutboundConfig { reason } => {
                 MobileError::InvalidOutboundConfig { reason }
@@ -76,7 +76,7 @@ impl From<EngineError> for MobileError {
             EngineError::OutboundNotFound { tag } => MobileError::OutboundNotFound { tag },
             EngineError::ProcessNotRunning { pid } => MobileError::ProcessNotRunning { pid },
             EngineError::Io(source) => MobileError::Io {
-                message: source.to_string(),
+                detail: source.to_string(),
             },
         }
     }
